@@ -81,7 +81,6 @@ export function PageCanvas({
   hasClipboard,
   pageCount,
 }: PageCanvasProps) {
-  const [guides, setGuides] = React.useState<{x?: number, y?: number}[]>([]);
   const containerRef = useRef<HTMLDivElement>(null);
   const contextClickPos = useRef<Position>({ x: 100, y: 100 });
 
@@ -133,58 +132,6 @@ export function PageCanvas({
     },
     [zoom]
   );
-
-  const handleDrag = useCallback((elementId: string, position: Position) => {
-    const activeElement = page.elements.find(el => el.id === elementId);
-    if (!activeElement) return;
-
-    const threshold = 5;
-    const newGuides: {x?: number, y?: number}[] = [];
-    const snappedPos = { ...position };
-
-    const otherElements = page.elements.filter(el => el.id !== elementId);
-    
-    // Y-axis (Horizontal guides)
-    const yTargets = [
-      0, A4_HEIGHT_PX, // Page edges
-      ...otherElements.flatMap(el => [el.position.y, el.position.y + el.size.height, el.position.y + el.size.height / 2])
-    ];
-
-    for (const targetY of yTargets) {
-      if (Math.abs(snappedPos.y - targetY) < threshold) {
-        snappedPos.y = targetY;
-        newGuides.push({ y: targetY });
-      } else if (Math.abs(snappedPos.y + activeElement.size.height - targetY) < threshold) {
-        snappedPos.y = targetY - activeElement.size.height;
-        newGuides.push({ y: targetY });
-      } else if (Math.abs(snappedPos.y + activeElement.size.height / 2 - targetY) < threshold) {
-        snappedPos.y = targetY - activeElement.size.height / 2;
-        newGuides.push({ y: targetY });
-      }
-    }
-
-    // X-axis (Vertical guides)
-    const xTargets = [
-      0, A4_WIDTH_PX, // Page edges
-      ...otherElements.flatMap(el => [el.position.x, el.position.x + el.size.width, el.position.x + el.size.width / 2])
-    ];
-
-    for (const targetX of xTargets) {
-      if (Math.abs(snappedPos.x - targetX) < threshold) {
-        snappedPos.x = targetX;
-        newGuides.push({ x: targetX });
-      } else if (Math.abs(snappedPos.x + activeElement.size.width - targetX) < threshold) {
-        snappedPos.x = targetX - activeElement.size.width;
-        newGuides.push({ x: targetX });
-      } else if (Math.abs(snappedPos.x + activeElement.size.width / 2 - targetX) < threshold) {
-        snappedPos.x = targetX - activeElement.size.width / 2;
-        newGuides.push({ x: targetX });
-      }
-    }
-
-    setGuides(newGuides);
-    onMoveElement(elementId, snappedPos);
-  }, [page.elements, onMoveElement]);
 
   const scale = zoom / 100;
 
@@ -256,20 +203,6 @@ export function PageCanvas({
                 />
               )}
 
-              {/* Alignment Guides */}
-              {isActivePage && guides.map((guide, i) => (
-                <div
-                  key={i}
-                  className="absolute bg-primary/40 pointer-events-none z-50"
-                  style={{
-                    left: guide.x !== undefined ? guide.x : 0,
-                    top: guide.y !== undefined ? guide.y : 0,
-                    width: guide.x !== undefined ? 1 : '100%',
-                    height: guide.y !== undefined ? 1 : '100%',
-                  }}
-                />
-              ))}
-
               {/* Rendered elements */}
               {page.elements.map((element) => (
                 <DraggableElement
@@ -281,8 +214,6 @@ export function PageCanvas({
                     onSelectElement(element.id);
                   }}
                   onMove={(pos) => onMoveElement(element.id, pos)}
-                  onDrag={(pos) => handleDrag(element.id, pos)}
-                  onDragEnd={() => setGuides([])}
                   onResize={(size) => onResizeElement(element.id, size)}
                   onUpdate={(updates) => onUpdateElement(element.id, updates)}
                   onDelete={() => onDeleteElement(element.id)}

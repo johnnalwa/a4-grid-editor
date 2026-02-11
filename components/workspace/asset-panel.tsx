@@ -38,7 +38,6 @@ interface AssetPanelProps {
   onAddText: () => void;
   onAddNote: () => void;
   onAddShape: () => void;
-  onAddTemplate: (templateId: string) => void;
   selectedPageId: string | null;
 }
 
@@ -50,28 +49,15 @@ export function AssetPanel({
   onAddText,
   onAddNote,
   onAddShape,
-  onAddTemplate,
   selectedPageId,
 }: AssetPanelProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [toolsExpanded, setToolsExpanded] = useState(true);
-  const [templatesExpanded, setTemplatesExpanded] = useState(true);
   const [assetsExpanded, setAssetsExpanded] = useState(true);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const filteredAssets = uploadedAssets.filter((asset) =>
     asset.name.toLowerCase().includes(searchQuery.toLowerCase())
-  );
-
-  const handleTemplateDragStart = useCallback(
-    (e: React.DragEvent, templateId: string) => {
-      e.dataTransfer.setData(
-        "application/x-asset",
-        JSON.stringify({ type: "template", templateId })
-      );
-      e.dataTransfer.effectAllowed = "copy";
-    },
-    []
   );
 
   const handleFileChange = useCallback(
@@ -190,48 +176,6 @@ export function AssetPanel({
           )}
         </div>
 
-        {/* Templates */}
-        <div className="p-3 pt-0">
-          <button
-            type="button"
-            className="flex items-center gap-2 w-full text-left mb-2"
-            onClick={() => setTemplatesExpanded(!templatesExpanded)}
-          >
-            {templatesExpanded ? (
-              <ChevronDown className="w-3 h-3 text-muted-foreground" />
-            ) : (
-              <ChevronRight className="w-3 h-3 text-muted-foreground" />
-            )}
-            <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-              Templates
-            </span>
-          </button>
-          {templatesExpanded && (
-            <div className="grid grid-cols-2 gap-2">
-              <TemplateButton 
-                label="CV Modern" 
-                onClick={() => onAddTemplate("cv")}
-                onDragStart={(e) => handleTemplateDragStart(e, "cv")}
-              />
-              <TemplateButton 
-                label="Invoice Pro" 
-                onClick={() => onAddTemplate("invoice")}
-                onDragStart={(e) => handleTemplateDragStart(e, "invoice")}
-              />
-              <TemplateButton 
-                label="Annual Report" 
-                onClick={() => onAddTemplate("report")}
-                onDragStart={(e) => handleTemplateDragStart(e, "report")}
-              />
-              <TemplateButton 
-                label="Drawing Grid" 
-                onClick={() => onAddTemplate("grid")}
-                onDragStart={(e) => handleTemplateDragStart(e, "grid")}
-              />
-            </div>
-          )}
-        </div>
-
         {/* Uploaded assets */}
         <div className="p-3 pt-0">
           <button
@@ -327,7 +271,7 @@ export function AssetPanel({
         <input
           ref={fileInputRef}
           type="file"
-          accept="image/*,.pdf,.svg,.webp,.avif"
+          accept="image/*"
           multiple
           className="hidden"
           onChange={handleFileChange}

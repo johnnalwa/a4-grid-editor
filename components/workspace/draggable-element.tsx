@@ -36,9 +36,6 @@ interface DraggableElementProps {
   onBringToFront: () => void;
   onSendToBack: () => void;
   onCopyToClipboard: () => void;
-  onDragStart?: () => void;
-  onDrag?: (position: { x: number; y: number }) => void;
-  onDragEnd?: () => void;
   containerRef: React.RefObject<HTMLDivElement | null>;
 }
 
@@ -54,9 +51,6 @@ export function DraggableElement({
   onBringToFront,
   onSendToBack,
   onCopyToClipboard,
-  onDragStart,
-  onDrag,
-  onDragEnd,
   containerRef,
 }: DraggableElementProps) {
   const elementRef = useRef<HTMLDivElement>(null);
@@ -75,7 +69,6 @@ export function DraggableElement({
       e.preventDefault();
       onSelect();
       setIsDragging(true);
-      onDragStart?.();
       dragStart.current = {
         x: e.clientX,
         y: e.clientY,
@@ -83,7 +76,7 @@ export function DraggableElement({
         elY: element.position.y,
       };
     },
-    [element.locked, element.position, isEditing, onSelect, onDragStart]
+    [element.locked, element.position, isEditing, onSelect]
   );
 
   useEffect(() => {
@@ -96,20 +89,13 @@ export function DraggableElement({
         container.getBoundingClientRect().width / container.offsetWidth;
       const dx = (e.clientX - dragStart.current.x) / scale;
       const dy = (e.clientY - dragStart.current.y) / scale;
-      
-      const newPos = {
+      onMove({
         x: Math.max(0, dragStart.current.elX + dx),
         y: Math.max(0, dragStart.current.elY + dy),
-      };
-
-      onDrag?.(newPos);
-      onMove(newPos);
+      });
     };
 
-    const handleMouseUp = () => {
-      setIsDragging(false);
-      onDragEnd?.();
-    };
+    const handleMouseUp = () => setIsDragging(false);
 
     window.addEventListener("mousemove", handleMouseMove);
     window.addEventListener("mouseup", handleMouseUp);
@@ -117,7 +103,7 @@ export function DraggableElement({
       window.removeEventListener("mousemove", handleMouseMove);
       window.removeEventListener("mouseup", handleMouseUp);
     };
-  }, [isDragging, containerRef, onMove, onDrag, onDragEnd]);
+  }, [isDragging, containerRef, onMove]);
 
   // -- Resize handling --
   const handleResizeMouseDown = useCallback(

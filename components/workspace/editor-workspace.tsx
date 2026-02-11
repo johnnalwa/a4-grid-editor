@@ -297,43 +297,6 @@ export function EditorWorkspace() {
   );
 
   // --------------- Keyboard shortcuts ---------------
-  const handlePaste = useCallback(
-    (e: ClipboardEvent) => {
-      // Don't paste if user is typing in an input
-      const active = document.activeElement;
-      const isTextInput =
-        active &&
-        (active.getAttribute("contenteditable") === "true" ||
-          active.tagName === "INPUT" ||
-          active.tagName === "TEXTAREA");
-
-      if (isTextInput) return;
-
-      const items = e.clipboardData?.items;
-      if (!items) return;
-
-      for (let i = 0; i < items.length; i++) {
-        if (items[i].type.startsWith("image/")) {
-          const file = items[i].getAsFile();
-          if (file) {
-            const fileList = Object.assign([file], {
-              item: (index: number) => file,
-              length: 1,
-            }) as unknown as FileList;
-            handleUploadFiles(fileList);
-          }
-        }
-      }
-    },
-    [handleUploadFiles]
-  );
-
-  useEffect(() => {
-    window.addEventListener("paste", handlePaste);
-    return () => window.removeEventListener("paste", handlePaste);
-  }, [handlePaste]);
-
-  // --------------- Keyboard shortcuts ---------------
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
       // Don't steal keys while editing text
