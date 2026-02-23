@@ -22,6 +22,7 @@ import {
   Pencil,
   ClipboardCopy,
   GripVertical,
+  Crop,
 } from "lucide-react";
 
 interface DraggableElementProps {
@@ -36,6 +37,8 @@ interface DraggableElementProps {
   onBringToFront: () => void;
   onSendToBack: () => void;
   onCopyToClipboard: () => void;
+  onDragStart?: () => void;
+  onDragEnd?: () => void;
   containerRef: React.RefObject<HTMLDivElement | null>;
 }
 
@@ -51,6 +54,8 @@ export function DraggableElement({
   onBringToFront,
   onSendToBack,
   onCopyToClipboard,
+  onDragStart,
+  onDragEnd,
   containerRef,
 }: DraggableElementProps) {
   const elementRef = useRef<HTMLDivElement>(null);
@@ -58,17 +63,19 @@ export function DraggableElement({
   const [isDragging, setIsDragging] = useState(false);
   const [isResizing, setIsResizing] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
+  const [isCropping, setIsCropping] = useState(false);
   const dragStart = useRef({ x: 0, y: 0, elX: 0, elY: 0 });
   const resizeStart = useRef({ x: 0, y: 0, w: 0, h: 0 });
 
   // -- Drag handling --
-  const handleMouseDown = useCallback(
-    (e: React.MouseEvent) => {
+  const handlePointerDown = useCallback(
+    (e: React.PointerEvent) => {
       if (element.locked || isEditing) return;
+      if (!e.isPrimary) return;
       e.stopPropagation();
-      e.preventDefault();
       onSelect();
       setIsDragging(true);
+      onDragStart?.();
       dragStart.current = {
         x: e.clientX,
         y: e.clientY,
@@ -82,7 +89,7 @@ export function DraggableElement({
   useEffect(() => {
     if (!isDragging) return;
 
-    const handleMouseMove = (e: MouseEvent) => {
+    const handlePointerMove = (e: PointerEvent) => {
       const container = containerRef.current;
       if (!container) return;
       const scale =
@@ -95,22 +102,24 @@ export function DraggableElement({
       });
     };
 
-    const handleMouseUp = () => setIsDragging(false);
+    const handlePointerUp = () => {
+      setIsDragging(false);
+      onDragEnd?.();
+    };
 
-    window.addEventListener("mousemove", handleMouseMove);
-    window.addEventListener("mouseup", handleMouseUp);
+    window.addEventListener("pointermove", handlePointerMove);
+    window.addEventListener("pointerup", handlePointerUp);
     return () => {
-      window.removeEventListener("mousemove", handleMouseMove);
-      window.removeEventListener("mouseup", handleMouseUp);
+      window.removeEventListener("pointermove", handlePointerMove);
+      window.removeEventListener("pointerup", handlePointerUp);
     };
   }, [isDragging, containerRef, onMove]);
 
   // -- Resize handling --
-  const handleResizeMouseDown = useCallback(
-    (e: React.MouseEvent) => {
+  const handleResizePointerDown = useCallback(
+    (e: React.PointerEvent) => {
       if (element.locked) return;
       e.stopPropagation();
-      e.preventDefault();
       setIsResizing(true);
       resizeStart.current = {
         x: e.clientX,
@@ -125,7 +134,7 @@ export function DraggableElement({
   useEffect(() => {
     if (!isResizing) return;
 
-    const handleMouseMove = (e: MouseEvent) => {
+    const handlePointerMove = (e: PointerEvent) => {
       const container = containerRef.current;
       if (!container) return;
       const scale =
@@ -138,13 +147,13 @@ export function DraggableElement({
       });
     };
 
-    const handleMouseUp = () => setIsResizing(false);
+    const handlePointerUp = () => setIsResizing(false);
 
-    window.addEventListener("mousemove", handleMouseMove);
-    window.addEventListener("mouseup", handleMouseUp);
+    window.addEventListener("pointermove", handlePointerMove);
+    window.addEventListener("pointerup", handlePointerUp);
     return () => {
-      window.removeEventListener("mousemove", handleMouseMove);
-      window.removeEventListener("mouseup", handleMouseUp);
+      window.removeEventListener("pointermove", handlePointerMove);
+      window.removeEventListener("pointerup", handlePointerUp);
     };
   }, [isResizing, containerRef, onResize]);
 
@@ -224,14 +233,24 @@ export function DraggableElement({
   // -- Render inner content --
   const renderContent = () => {
     if (element.type === "image" && element.src) {
+      const crop = element.crop || { x: 0, y: 0, width: 1, height: 1 };
+      
       return (
-        <img
-          src={element.src || "/placeholder.svg"}
-          alt={element.fileName || "Uploaded image"}
-          className="w-full h-full object-cover"
-          draggable={false}
-          onMouseDown={handleMouseDown}
-        />
+        <div className="w-full h-full relative overflow-hidden">
+          <img
+            src={element.src || "/placeholder.svg"}
+            alt={element.fileName || "Uploaded image"}
+            className="absolute max-w-none origin-top-left"
+            style={{
+              width: `${100 / crop.width}%`,
+              height: `${100 / crop.height}%`,
+              left: `${-crop.x * (100 / crop.width)}%`,
+              top: `${-crop.y * (100 / crop.height)}%`,
+            }}
+            draggable={false}
+            onPointerDown={handlePointerDown}
+          />
+        </div>
       );
     }
 
@@ -257,7 +276,7 @@ export function DraggableElement({
           onDoubleClick={handleDoubleClick}
           onBlur={handleBlur}
           onKeyDown={isEditing ? handleEditKeyDown : undefined}
-          onMouseDown={isEditing ? undefined : handleMouseDown}
+          onPointerDown={isEditing ? undefined : handlePointerDown}
         >
           {element.content || (
             <span className="text-muted-foreground/50 italic text-[11px] pointer-events-none select-none">
@@ -292,7 +311,7 @@ export function DraggableElement({
           onDoubleClick={handleDoubleClick}
           onBlur={handleBlur}
           onKeyDown={isEditing ? handleEditKeyDown : undefined}
-          onMouseDown={isEditing ? undefined : handleMouseDown}
+          onPointerDown={isEditing ? undefined : handlePointerDown}
         >
           {element.content || (
             <span className="text-muted-foreground/60 italic text-[11px] pointer-events-none select-none">
@@ -311,7 +330,7 @@ export function DraggableElement({
             backgroundColor: element.backgroundColor || "#dbeafe",
             borderRadius: element.borderRadius || 0,
           }}
-          onMouseDown={handleMouseDown}
+          onPointerDown={handlePointerDown}
         />
       );
     }
@@ -339,7 +358,7 @@ export function DraggableElement({
             zIndex: element.zIndex,
             opacity: element.opacity,
           }}
-          onMouseDown={(e) => {
+          onPointerDown={(e) => {
             if (!isEditing) {
               e.stopPropagation();
               onSelect();
@@ -363,12 +382,42 @@ export function DraggableElement({
             {renderContent()}
           </div>
 
+          {/* File name label for images */}
+          {element.type === "image" && (
+            <div 
+              className="absolute left-1/2 -translate-x-1/2 top-full pt-1.5 w-[90%] flex justify-center z-20"
+              onPointerDown={(e) => e.stopPropagation()}
+            >
+              <input
+                type="text"
+                defaultValue={element.fileName || "unnamed.png"}
+                className={cn(
+                  "bg-surface/90 backdrop-blur-sm border border-border/60 rounded px-1.5 py-0.5 text-[9px] text-center font-medium outline-none transition-all w-full shadow-sm",
+                  "hover:bg-surface hover:border-primary/40 text-muted-foreground hover:text-foreground",
+                  "focus:bg-surface focus:border-primary focus:ring-2 focus:ring-primary/10 focus:w-full focus:text-foreground focus:shadow-md"
+                )}
+                onFocus={(e) => e.target.select()}
+                onBlur={(e) => {
+                  if (e.target.value !== element.fileName) {
+                    onUpdate({ fileName: e.target.value });
+                  }
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.currentTarget.blur();
+                  }
+                  e.stopPropagation();
+                }}
+              />
+            </div>
+          )}
+
           {/* Controls bar above element */}
           {isSelected && !isEditing && (
             <>
               <div
                 className="absolute -top-7 left-0 flex items-center gap-0.5 bg-primary text-primary-foreground rounded-t-md px-1.5 py-0.5 text-[10px] font-medium shadow-sm"
-                onMouseDown={handleMouseDown}
+                onPointerDown={handlePointerDown}
               >
                 <GripVertical className="w-3 h-3" />
                 <span className="capitalize">{element.type}</span>
@@ -407,7 +456,7 @@ export function DraggableElement({
               {!element.locked && (
                 <div
                   className="absolute -bottom-1 -right-1 w-4 h-4 cursor-se-resize z-20"
-                  onMouseDown={handleResizeMouseDown}
+                  onPointerDown={handleResizePointerDown}
                 >
                   <div className="w-2.5 h-2.5 bg-primary rounded-sm border-2 border-primary-foreground shadow-sm absolute bottom-0 right-0" />
                 </div>
@@ -434,6 +483,28 @@ export function DraggableElement({
               Edit Text
               <ContextMenuShortcut>Enter</ContextMenuShortcut>
             </ContextMenuItem>
+            <ContextMenuSeparator />
+          </>
+        )}
+
+        {element.type === "image" && (
+          <>
+            <ContextMenuItem
+              className="gap-2 text-xs"
+              onClick={() => setIsCropping(!isCropping)}
+            >
+              <Crop className="w-3.5 h-3.5" />
+              {isCropping ? "Finish Cropping" : "Crop Image"}
+            </ContextMenuItem>
+            {element.crop && (
+               <ContextMenuItem
+                className="gap-2 text-xs"
+                onClick={() => onUpdate({ crop: undefined })}
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                Reset Crop
+              </ContextMenuItem>
+            )}
             <ContextMenuSeparator />
           </>
         )}

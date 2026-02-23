@@ -10,6 +10,13 @@ export interface Size {
 
 export type ElementType = "image" | "text" | "note" | "shape";
 
+export interface CropData {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
 export interface PageElement {
   id: string;
   type: ElementType;
@@ -19,7 +26,8 @@ export interface PageElement {
   zIndex: number;
   locked: boolean;
   opacity: number;
-  // Type-specific data
+  crop?: CropData;
+  // ... rest of the properties
   content?: string; // For text/note
   src?: string; // For image (data URL or object URL)
   fileName?: string; // Original file name for images

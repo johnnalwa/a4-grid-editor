@@ -18,16 +18,20 @@ import {
   Unlock,
   Layers,
   Palette,
+  X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface PropertiesPanelProps {
+  isOpen: boolean;
+  onClose: () => void;
   selectedElement: PageElement | null;
   selectedPage: DocumentPage | null;
   onUpdateElement: (updates: Partial<PageElement>) => void;
   onDeleteElement: () => void;
   onDuplicateElement: () => void;
   onUpdatePageBackground: (color: string) => void;
+  isMobile?: boolean;
 }
 
 const NOTE_COLORS = [
@@ -48,23 +52,34 @@ const PAGE_BG_COLORS = [
 ];
 
 export function PropertiesPanel({
+  isOpen,
+  onClose,
   selectedElement,
   selectedPage,
   onUpdateElement,
   onDeleteElement,
   onDuplicateElement,
   onUpdatePageBackground,
+  isMobile = false,
 }: PropertiesPanelProps) {
+  if (!isOpen || (!selectedElement && !selectedPage)) {
+    return null;
+  }
+
+  const panelClasses = cn(
+    "border-l border-border bg-surface shrink-0 flex flex-col transition-all duration-300 h-full shadow-lg",
+    isMobile ? "w-full sm:w-80" : "w-64"
+  );
+
   if (!selectedElement && !selectedPage) {
     return (
-      <aside className="w-64 border-l border-border bg-surface shrink-0 flex flex-col items-center justify-center p-6 text-center">
-        <Layers className="w-8 h-8 text-muted-foreground/30 mb-3" />
-        <p className="text-xs font-medium text-muted-foreground">
-          Select an element to view properties
-        </p>
-        <p className="text-[10px] text-muted-foreground/70 mt-1">
-          Click any element on the canvas
-        </p>
+      <aside className={panelClasses}>
+        <div className="flex-1 flex flex-col items-center justify-center p-6 text-center">
+          <Layers className="w-8 h-8 text-muted-foreground/30 mb-3" />
+          <p className="text-xs font-medium text-muted-foreground">
+            Select an element to view properties
+          </p>
+        </div>
       </aside>
     );
   }
@@ -72,9 +87,14 @@ export function PropertiesPanel({
   // Show page properties when no element is selected
   if (!selectedElement && selectedPage) {
     return (
-      <aside className="w-64 border-l border-border bg-surface shrink-0 flex flex-col">
-        <div className="p-3 border-b border-border">
+      <aside className={panelClasses}>
+        <div className="p-3 border-b border-border flex items-center justify-between">
           <h3 className="text-xs font-bold text-foreground">Page Properties</h3>
+          {isMobile && (
+            <Button variant="ghost" size="icon" className="h-6 w-6" onClick={onClose}>
+              <X className="w-4 h-4" />
+            </Button>
+          )}
         </div>
         <ScrollArea className="flex-1">
           <div className="p-3 space-y-4">
@@ -129,11 +149,18 @@ export function PropertiesPanel({
     selectedElement.type === "text" || selectedElement.type === "note";
 
   return (
-    <aside className="w-64 border-l border-border bg-surface shrink-0 flex flex-col">
+    <aside className={panelClasses}>
       <div className="p-3 border-b border-border flex items-center justify-between">
-        <h3 className="text-xs font-bold text-foreground capitalize">
-          {selectedElement.type} Properties
-        </h3>
+        <div className="flex items-center gap-2">
+          {isMobile && (
+            <Button variant="ghost" size="icon" className="h-6 w-6 mr-1" onClick={onClose}>
+              <X className="w-4 h-4" />
+            </Button>
+          )}
+          <h3 className="text-xs font-bold text-foreground capitalize">
+            {selectedElement.type}
+          </h3>
+        </div>
         <div className="flex items-center gap-1">
           <Button
             variant="ghost"
@@ -477,11 +504,22 @@ export function PropertiesPanel({
               <Separator />
               <div>
                 <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-1 block">
-                  File
+                  File Name
                 </Label>
-                <p className="text-[11px] text-foreground truncate">
-                  {selectedElement.fileName}
-                </p>
+                <Input
+                  className="h-7 text-xs"
+                  defaultValue={selectedElement.fileName || "unnamed.png"}
+                  onBlur={(e) => {
+                    if (e.target.value !== selectedElement.fileName) {
+                      onUpdateElement({ fileName: e.target.value });
+                    }
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.currentTarget.blur();
+                    }
+                  }}
+                />
               </div>
               <div>
                 <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-2 block">
@@ -498,6 +536,20 @@ export function PropertiesPanel({
                   className="w-full"
                 />
               </div>
+
+              {selectedElement.crop && (
+                <div className="pt-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full text-[10px] h-7 gap-2"
+                    onClick={() => onUpdateElement({ crop: undefined })}
+                  >
+                    <Trash2 className="w-3 h-3" />
+                    Reset Image Crop
+                  </Button>
+                </div>
+              )}
             </>
           )}
         </div>

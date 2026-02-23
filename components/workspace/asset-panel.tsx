@@ -33,12 +33,15 @@ export interface UploadedAsset {
 interface AssetPanelProps {
   isOpen: boolean;
   uploadedAssets: UploadedAsset[];
-  onUploadFiles: (files: FileList) => void;
+  onUploadFiles: (files: FileList | File[]) => void;
   onRemoveAsset: (id: string) => void;
   onAddText: () => void;
   onAddNote: () => void;
   onAddShape: () => void;
+  onAddAsset: (asset: UploadedAsset) => void;
   selectedPageId: string | null;
+  isMobile?: boolean;
+  onClose?: () => void;
 }
 
 export function AssetPanel({
@@ -49,7 +52,10 @@ export function AssetPanel({
   onAddText,
   onAddNote,
   onAddShape,
+  onAddAsset,
   selectedPageId,
+  isMobile = false,
+  onClose,
 }: AssetPanelProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [toolsExpanded, setToolsExpanded] = useState(true);
@@ -109,10 +115,20 @@ export function AssetPanel({
   return (
     <aside
       className={cn(
-        "border-r border-border bg-surface flex flex-col shrink-0 transition-all duration-300",
-        isOpen ? "w-72" : "w-0 overflow-hidden"
+        "border-r border-border bg-surface flex flex-col shrink-0 transition-all duration-300 h-full",
+        isOpen ? (isMobile ? "w-full sm:w-80" : "w-72") : "w-0 overflow-hidden"
       )}
     >
+      {/* Header with Close for Mobile */}
+      <div className="p-3 border-b border-border flex items-center justify-between">
+        <h3 className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Assets & Tools</h3>
+        {isMobile && (
+          <Button variant="ghost" size="icon" className="h-6 w-6" onClick={onClose}>
+            <X className="w-4 h-4" />
+          </Button>
+        )}
+      </div>
+
       {/* Search */}
       <div className="p-3 border-b border-border">
         <div className="relative">
@@ -226,7 +242,8 @@ export function AssetPanel({
                     key={asset.id}
                     draggable
                     onDragStart={(e) => handleDragStart(e, asset)}
-                    className="flex items-center gap-2.5 p-2 rounded-lg hover:bg-muted transition-colors cursor-grab active:cursor-grabbing group"
+                    onClick={() => onAddAsset(asset)}
+                    className="flex items-center gap-2.5 p-2 rounded-lg hover:bg-muted transition-colors cursor-pointer group"
                   >
                     <div className="w-10 h-10 rounded-md overflow-hidden bg-muted shrink-0 border border-border">
                       <img
@@ -271,7 +288,7 @@ export function AssetPanel({
         <input
           ref={fileInputRef}
           type="file"
-          accept="image/*"
+          accept="image/*,application/pdf"
           multiple
           className="hidden"
           onChange={handleFileChange}

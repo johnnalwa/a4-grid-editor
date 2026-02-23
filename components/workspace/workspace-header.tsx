@@ -41,6 +41,8 @@ interface WorkspaceHeaderProps {
   selectedPageId: string | null;
   onDeletePage: () => void;
   onDuplicatePage: () => void;
+  imagesPerPage: number;
+  onSetImagesPerPage: (val: number) => void;
 }
 
 export function WorkspaceHeader({
@@ -59,6 +61,8 @@ export function WorkspaceHeader({
   selectedPageId,
   onDeletePage,
   onDuplicatePage,
+  imagesPerPage,
+  onSetImagesPerPage,
 }: WorkspaceHeaderProps) {
   const [isEditingName, setIsEditingName] = useState(false);
   const [nameValue, setNameValue] = useState(documentName);
@@ -94,15 +98,15 @@ export function WorkspaceHeader({
             </TooltipContent>
           </Tooltip>
 
-          <div className="h-5 w-px bg-border" />
+          <div className="h-5 w-px bg-border hidden sm:block" />
 
           {/* Document name */}
-          <div className="flex items-center gap-1.5">
-            <div className="w-7 h-7 bg-primary rounded-md flex items-center justify-center text-primary-foreground shrink-0">
+          <div className="flex items-center gap-1.5 min-w-0 flex-1">
+            <div className="w-7 h-7 bg-primary rounded-md flex items-center justify-center text-primary-foreground shrink-0 hidden sm:flex">
               <FileText className="w-3.5 h-3.5" />
             </div>
             {isEditingName ? (
-              <div className="flex items-center gap-1">
+              <div className="flex items-center gap-1 flex-1 min-w-0">
                 <Input
                   autoFocus
                   value={nameValue}
@@ -111,7 +115,7 @@ export function WorkspaceHeader({
                     if (e.key === "Enter") handleSaveName();
                     if (e.key === "Escape") setIsEditingName(false);
                   }}
-                  className="h-7 text-xs w-48"
+                  className="h-7 text-xs w-full max-w-[120px] sm:max-w-[200px]"
                 />
                 <Button
                   variant="ghost"
@@ -125,21 +129,41 @@ export function WorkspaceHeader({
             ) : (
               <button
                 type="button"
-                className="flex items-center gap-1.5 hover:bg-muted rounded px-2 py-1 transition-colors"
+                className="flex items-center gap-1.5 hover:bg-muted rounded px-2 py-1 transition-colors min-w-0"
                 onClick={() => {
                   setNameValue(documentName);
                   setIsEditingName(true);
                 }}
               >
-                <span className="font-medium text-xs text-foreground truncate max-w-[200px]">
+                <span className="font-medium text-xs text-foreground truncate max-w-[100px] sm:max-w-[200px]">
                   {documentName}
                 </span>
-                <Pencil className="w-3 h-3 text-muted-foreground" />
+                <Pencil className="w-3 h-3 text-muted-foreground shrink-0" />
               </button>
             )}
           </div>
 
           <div className="h-5 w-px bg-border hidden md:block" />
+ 
+          {/* Images per page */}
+          <div className="hidden lg:flex items-center gap-2">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground whitespace-nowrap">
+              Images/Page:
+            </span>
+            <select
+              value={imagesPerPage}
+              onChange={(e) => onSetImagesPerPage(Number(e.target.value))}
+              className="h-7 bg-muted border-none text-[11px] font-medium rounded px-1.5 focus:ring-1 focus:ring-primary outline-none cursor-pointer"
+            >
+              {[1, 2, 4, 6, 8, 9, 12, 16].map((num) => (
+                <option key={num} value={num}>
+                  {num}
+                </option>
+              ))}
+            </select>
+          </div>
+ 
+          <div className="h-5 w-px bg-border hidden lg:block" />
 
           {/* Zoom controls */}
           <div className="hidden md:flex items-center gap-0.5 bg-muted rounded-lg p-0.5">
@@ -257,7 +281,7 @@ export function WorkspaceHeader({
             onClick={onExport}
           >
             <Download className="w-3.5 h-3.5" />
-            Export PDF
+            <span className="hidden sm:inline">Export PDF</span>
           </Button>
         </div>
       </header>

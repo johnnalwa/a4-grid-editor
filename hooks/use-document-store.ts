@@ -346,5 +346,89 @@ export function useDocumentStore() {
     sendToBack,
     getSelectedPage,
     getSelectedElement,
+    addImagesInBatch: (
+      images: { src: string; name: string; width: number; height: number }[],
+      imagesPerPage: number
+    ) => {
+      setState((prev) => {
+        let newPages = [...prev.pages];
+        let currentPageIndex = prev.selectedPageId 
+          ? newPages.findIndex(p => p.id === prev.selectedPageId)
+          : 0;
+        
+        if (currentPageIndex === -1) currentPageIndex = 0;
+        
+        const gridCols = Math.ceil(Math.sqrt(imagesPerPage));
+        const gridRows = Math.ceil(imagesPerPage / gridCols);
+        const margin = 40;
+        const spacing = 20;
+        const availableWidth = 595 - 2 * margin - (gridCols - 1) * spacing;
+        const availableHeight = 842 - 2 * margin - (gridRows - 1) * spacing;
+        const cellW = availableWidth / gridCols;
+        const cellH = availableHeight / gridRows;
+
+        const currentPage = newPages[currentPageIndex];
+        const existingImagesCount = currentPage?.elements.filter(el => el.type === 'image').length || 0;
+
+        images.forEach((img, index) => {
+          let targetPageIndex: number;
+          let indexInPage: number;
+
+          if (images.length === 1) {
+            // Single image/screenshot: stay on current page
+            targetPageIndex = currentPageIndex;
+            // Use next slot if available, otherwise overlap at the first slot
+            indexInPage = existingImagesCount < imagesPerPage ? existingImagesCount : 0;
+          } else {
+            // Bulk upload: fill current page then move to next
+            const virtualIndex = index + (existingImagesCount < imagesPerPage ? existingImagesCount : 0);
+            const pageOffset = Math.floor(virtualIndex / imagesPerPage);
+            indexInPage = virtualIndex % imagesPerPage;
+            targetPageIndex = currentPageIndex + pageOffset;
+          }
+          
+          // Ensure pages exist
+          while (targetPageIndex >= newPages.length) {
+            newPages.push(createPage());
+          }
+          
+          const row = Math.floor(indexInPage / gridCols);
+          const col = indexInPage % gridCols;
+          const pos = {
+            x: margin + col * (cellW + spacing),
+            y: margin + row * (cellH + spacing),
+          };
+
+          // If overlapping due to being full, add a slight offset
+          if (images.length === 1 && existingImagesCount >= imagesPerPage) {
+            pos.x += 20;
+            pos.y += 20;
+          }
+
+          const element = createImageElement(
+            pos,
+            img.src,
+            img.name,
+            img.width,
+            img.height
+          );
+          
+          // Re-scale to fit cell if needed
+          const scale = Math.min(cellW / element.size.width, cellH / element.size.height, 1);
+          element.size.width *= scale;
+          element.size.height *= scale;
+
+          newPages[targetPageIndex] = {
+            ...newPages[targetPageIndex],
+            elements: [
+              ...newPages[targetPageIndex].elements,
+              { ...element, zIndex: newPages[targetPageIndex].elements.length + 1 }
+            ]
+          };
+        });
+
+        return { ...prev, pages: newPages };
+      });
+    }
   };
 }

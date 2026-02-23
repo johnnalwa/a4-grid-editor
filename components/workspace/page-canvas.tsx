@@ -52,6 +52,7 @@ interface PageCanvasProps {
   onDuplicatePage: () => void;
   hasClipboard: boolean;
   pageCount: number;
+  isMobile?: boolean;
 }
 
 export function PageCanvas({
@@ -80,7 +81,12 @@ export function PageCanvas({
   onDuplicatePage,
   hasClipboard,
   pageCount,
+  isMobile = false,
 }: PageCanvasProps) {
+  const [guides, setGuides] = React.useState<{ x: number[]; y: number[] }>({
+    x: [],
+    y: [],
+  });
   const containerRef = useRef<HTMLDivElement>(null);
   const contextClickPos = useRef<Position>({ x: 100, y: 100 });
 
@@ -116,6 +122,99 @@ export function PageCanvas({
       onDropAsset(page.id, position, e.dataTransfer);
     },
     [page.id, zoom, onDropAsset]
+  );
+
+  const handleMoveElementInternal = useCallback(
+    (elId: string, pos: Position) => {
+      const SNAP_THRESHOLD = 5;
+      const movingEl = page.elements.find((e) => e.id === elId);
+      if (!movingEl) return;
+
+      let snappedX = pos.x;
+      let snappedY = pos.y;
+      const activeGuidesX: number[] = [];
+      const activeGuidesY: number[] = [];
+
+      const targets = page.elements.filter((e) => e.id !== elId);
+      const pageTargetsX = [0, A4_WIDTH_PX / 2, A4_WIDTH_PX];
+      const pageTargetsY = [0, A4_HEIGHT_PX / 2, A4_HEIGHT_PX];
+
+      // X snapping
+      const movingEdgesX = [
+        pos.x,
+        pos.x + movingEl.size.width / 2,
+        pos.x + movingEl.size.width,
+      ];
+
+      targets.forEach((target) => {
+        const targetEdgesX = [
+          target.position.x,
+          target.position.x + target.size.width / 2,
+          target.position.x + target.size.width,
+        ];
+        movingEdgesX.forEach((mEdge, mi) => {
+          targetEdgesX.forEach((tEdge) => {
+            if (Math.abs(mEdge - tEdge) < SNAP_THRESHOLD) {
+              snappedX =
+                tEdge -
+                (mi === 0 ? 0 : mi === 1 ? movingEl.size.width / 2 : movingEl.size.width);
+              if (!activeGuidesX.includes(tEdge)) activeGuidesX.push(tEdge);
+            }
+          });
+        });
+      });
+
+      pageTargetsX.forEach((tEdge) => {
+        movingEdgesX.forEach((mEdge, mi) => {
+          if (Math.abs(mEdge - tEdge) < SNAP_THRESHOLD) {
+            snappedX =
+              tEdge -
+              (mi === 0 ? 0 : mi === 1 ? movingEl.size.width / 2 : movingEl.size.width);
+            if (!activeGuidesX.includes(tEdge)) activeGuidesX.push(tEdge);
+          }
+        });
+      });
+
+      // Y snapping
+      const movingEdgesY = [
+        pos.y,
+        pos.y + movingEl.size.height / 2,
+        pos.y + movingEl.size.height,
+      ];
+
+      targets.forEach((target) => {
+        const targetEdgesY = [
+          target.position.y,
+          target.position.y + target.size.height / 2,
+          target.position.y + target.size.height,
+        ];
+        movingEdgesY.forEach((mEdge, mi) => {
+          targetEdgesY.forEach((tEdge) => {
+            if (Math.abs(mEdge - tEdge) < SNAP_THRESHOLD) {
+              snappedY =
+                tEdge -
+                (mi === 0 ? 0 : mi === 1 ? movingEl.size.height / 2 : movingEl.size.height);
+              if (!activeGuidesY.includes(tEdge)) activeGuidesY.push(tEdge);
+            }
+          });
+        });
+      });
+
+      pageTargetsY.forEach((tEdge) => {
+        movingEdgesY.forEach((mEdge, mi) => {
+          if (Math.abs(mEdge - tEdge) < SNAP_THRESHOLD) {
+            snappedY =
+              tEdge -
+              (mi === 0 ? 0 : mi === 1 ? movingEl.size.height / 2 : movingEl.size.height);
+            if (!activeGuidesY.includes(tEdge)) activeGuidesY.push(tEdge);
+          }
+        });
+      });
+
+      setGuides({ x: activeGuidesX, y: activeGuidesY });
+      onMoveElement(elId, { x: snappedX, y: snappedY });
+    },
+    [page.elements, onMoveElement]
   );
 
   // Track where the user right-clicked on the canvas for "Add at cursor" actions
@@ -203,6 +302,24 @@ export function PageCanvas({
                 />
               )}
 
+              {/* Snapping Guides - Vertical */}
+              {guides.x.map((x, i) => (
+                <div
+                  key={`guide-x-${i}`}
+                  className="absolute top-0 bottom-0 border-l border-primary/50 pointer-events-none z-[100]"
+                  style={{ left: x }}
+                />
+              ))}
+
+              {/* Snapping Guides - Horizontal */}
+              {guides.y.map((y, i) => (
+                <div
+                  key={`guide-y-${i}`}
+                  className="absolute left-0 right-0 border-t border-primary/50 pointer-events-none z-[100]"
+                  style={{ top: y }}
+                />
+              ))}
+
               {/* Rendered elements */}
               {page.elements.map((element) => (
                 <DraggableElement
@@ -213,7 +330,7 @@ export function PageCanvas({
                     onSelectPage();
                     onSelectElement(element.id);
                   }}
-                  onMove={(pos) => onMoveElement(element.id, pos)}
+                  onMove={(pos) => handleMoveElementInternal(element.id, pos)}
                   onResize={(size) => onResizeElement(element.id, size)}
                   onUpdate={(updates) => onUpdateElement(element.id, updates)}
                   onDelete={() => onDeleteElement(element.id)}
@@ -221,6 +338,7 @@ export function PageCanvas({
                   onBringToFront={() => onBringToFront(element.id)}
                   onSendToBack={() => onSendToBack(element.id)}
                   onCopyToClipboard={() => onCopyElement(element.id)}
+                  onDragEnd={() => setGuides({ x: [], y: [] })}
                   containerRef={containerRef}
                 />
               ))}

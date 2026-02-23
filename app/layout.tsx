@@ -19,6 +19,8 @@ export const viewport: Viewport = {
   themeColor: "#2563eb",
 };
 
+import { Toaster } from "@/components/ui/sonner";
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -28,6 +30,7 @@ export default function RootLayout({
     <html lang="en" suppressHydrationWarning>
       <body className={`${_inter.variable} font-sans antialiased overflow-hidden`}>
         {children}
+        <Toaster position="bottom-right" richColors />
       </body>
     </html>
   );
