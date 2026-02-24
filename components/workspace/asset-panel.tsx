@@ -144,13 +144,13 @@ export function AssetPanel({
   return (
     <aside
       className={cn(
-        "border-r border-border bg-surface flex flex-col shrink-0 transition-all duration-300 h-full",
-        isOpen ? (isMobile ? "w-full sm:w-80" : "w-72") : "w-0 overflow-hidden"
+        "border-r border-border bg-surface flex flex-col shrink-0 transition-all duration-300 h-full overflow-hidden",
+        isOpen ? (isMobile ? "w-full sm:w-80" : "w-72") : "w-0"
       )}
     >
       {/* Header with Close for Mobile */}
-      <div className="p-3 border-b border-border flex items-center justify-between">
-        <h3 className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Assets & Tools</h3>
+      <div className="p-3 border-b border-border flex items-center justify-between bg-muted/30">
+        <h3 className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground">Assets & Tools</h3>
         {isMobile && (
           <Button variant="ghost" size="icon" className="h-6 w-6" onClick={onClose}>
             <X className="w-4 h-4" />
@@ -273,7 +273,7 @@ export function AssetPanel({
                       <button
                         type="button"
                         onClick={() => toggleGroup(groupName)}
-                        className="flex items-center gap-2 flex-1 p-2 rounded-lg hover:bg-muted/50 transition-colors text-left"
+                        className="flex items-center gap-2 flex-1 min-w-0 p-2 rounded-lg hover:bg-muted/50 transition-colors text-left"
                       >
                         {expandedGroups[groupName] ? (
                           <ChevronDown className="w-3 h-3 text-muted-foreground" />
@@ -292,7 +292,7 @@ export function AssetPanel({
                           </p>
                         </div>
                       </button>
-                      <div className="flex items-center gap-0.5 pr-1 opacity-0 group-hover/header:opacity-100 transition-opacity">
+                      <div className="flex items-center gap-0.5 pr-1 opacity-0 group-hover/header:opacity-100 group-hover/header:flex hidden transition-opacity shrink-0">
                         <Button
                           variant="ghost"
                           size="icon"
@@ -454,7 +454,7 @@ function ToolButton({
       )}
     >
       {icon}
-      <span className="text-[10px] font-medium">{label}</span>
+      <span className="text-[10px] font-medium w-full truncate text-center px-1">{label}</span>
     </button>
   );
 }

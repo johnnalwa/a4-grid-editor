@@ -20,7 +20,7 @@ export function PageList({
 }: PageListProps) {
   return (
     <div className="w-20 border-r border-border bg-surface shrink-0 flex flex-col">
-      <div className="p-2 border-b border-border">
+      <div className="p-3 border-b border-border bg-muted/30">
         <span className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground block text-center">
           Pages
         </span>
