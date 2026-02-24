@@ -125,3 +125,7 @@ export async function getAnswer(id: string): Promise<RTCSessionDescriptionInit |
   }
   return sessions.get(id)?.answer ?? null;
 }
+
+export function getStorageType(): "redis" | "memory" {
+  return redis ? "redis" : "memory";
+}
