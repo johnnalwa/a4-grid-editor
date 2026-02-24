@@ -98,6 +98,8 @@ export function ExportDialog({
 
         if (element.type === "image" && element.src) {
           await drawImage(ctx, element);
+          // Draw the filename label below the image
+          drawFilenameLabel(ctx, element);
         } else if (element.type === "text") {
           drawText(ctx, element);
         } else if (element.type === "note") {
@@ -523,4 +525,53 @@ function wrapText(
     lines.push(currentLine);
   }
   return lines.length > 0 ? lines : [""];
+}
+
+function drawFilenameLabel(ctx: CanvasRenderingContext2D, element: PageElement) {
+  const fileName = element.fileName || "unnamed.png";
+  const fontSize = 9;
+  ctx.save();
+  ctx.font = `500 ${fontSize}px Inter, system-ui, sans-serif`;
+  
+  const textBaseline = element.position.y + element.size.width + 6;
+  const metrics = ctx.measureText(fileName);
+  const paddingX = 6;
+  const paddingY = 3;
+  
+  const bgW = Math.min(element.size.width * 0.95, metrics.width + paddingX * 2);
+  const bgH = fontSize + paddingY * 2;
+  const x = element.position.x + element.size.width / 2;
+  const y = element.position.y + element.size.height + 6;
+
+  // Draw background box
+  ctx.fillStyle = "rgba(255, 255, 255, 0.9)";
+  roundRect(ctx, x - bgW/2, y, bgW, bgH, 3);
+  ctx.fill();
+  
+  // Draw border
+  ctx.strokeStyle = "rgba(0, 0, 0, 0.1)";
+  ctx.lineWidth = 0.5;
+  ctx.stroke();
+
+  // Draw text
+  ctx.fillStyle = "#475569";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  
+  // Truncate text if it doesn't fit
+  let displayTitle = fileName;
+  if (metrics.width > bgW - paddingX * 2) {
+    displayTitle = fileName.substring(0, 15) + "...";
+  }
+  
+  ctx.fillText(displayTitle, x, y + bgH / 2);
+  ctx.restore();
+}
+
+function detectTextDirection(text: string): "rtl" | "ltr" {
+  if (!text) return "ltr";
+  const trimmed = text.replace(/\s+/g, "");
+  if (!trimmed) return "ltr";
+  const rtlRegex = /^[\u0590-\u08FF\uFB1D-\uFDFF\uFE70-\uFEFF]/;
+  return rtlRegex.test(trimmed) ? "rtl" : "ltr";
 }

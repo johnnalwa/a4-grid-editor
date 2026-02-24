@@ -64,7 +64,18 @@ export function EditorWorkspace() {
   const [uploadedAssets, setUploadedAssets] = useState<UploadedAsset[]>([]);
   const [clipboard, setClipboard] = useState<PageElement | null>(null);
   const [imagesPerPage, setImagesPerPage] = useState(4);
+  const [twoPageLayout, setTwoPageLayout] = useState<"horizontal" | "vertical">("vertical");
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const hasChangedLayout = useRef(false);
+
+  // Auto-rearrange when grid settings change (skip initial mount)
+  useEffect(() => {
+    if (!hasChangedLayout.current) {
+      hasChangedLayout.current = true;
+      return;
+    }
+    store.rearrangePages(imagesPerPage, twoPageLayout);
+  }, [imagesPerPage, twoPageLayout]);
 
   // Dark mode
   useEffect(() => {
@@ -94,7 +105,7 @@ export function EditorWorkspace() {
 
   // --------------- File upload ---------------
   const handleUploadFiles = useCallback(
-    async (files: FileList | File[]) => {
+    async (files: FileList | File[], dropTarget?: { pageId: string; position: Position }) => {
       const fileList = Array.from(files);
       const imageFiles = fileList.filter(f => f.type.startsWith("image/"));
       const pdfFiles = fileList.filter(f => f.type === "application/pdf");
@@ -103,7 +114,14 @@ export function EditorWorkspace() {
 
       const promise = new Promise<{count: number}>(async (resolve, reject) => {
           try {
-            const loadedImages: { src: string; name: string; width: number; height: number; size: number }[] = [];
+            const loadedImages: { 
+              src: string; 
+              name: string; 
+              width: number; 
+              height: number; 
+              size: number;
+              parentFile?: string;
+            }[] = [];
             
             // Process Image Files
             for (const file of imageFiles) {
@@ -138,6 +156,7 @@ export function EditorWorkspace() {
                 loadedImages.push(...pdfImages.map(img => ({
                   ...img,
                   size: file.size / pdfImages.length, // Rough estimate
+                  parentFile: file.name,
                 })));
               } catch (err) {
                 console.error("PDF conversion error:", err);
@@ -155,11 +174,27 @@ export function EditorWorkspace() {
               naturalWidth: img.width,
               naturalHeight: img.height,
               size: img.size,
+              parentFile: img.parentFile,
             }));
             setUploadedAssets((prev) => [...prev, ...newAssets]);
  
-            // Arrangement using store helper
-            store.addImagesInBatch(loadedImages, imagesPerPage);
+            // Arrangement
+            if (dropTarget && loadedImages.length === 1) {
+              // Targeted single drop: land exactly where dropped
+              const img = loadedImages[0];
+              const el = createImageElement(
+                dropTarget.position,
+                img.src,
+                img.name,
+                img.width,
+                img.height
+              );
+              store.addElement(dropTarget.pageId, el);
+              store.selectPage(dropTarget.pageId);
+            } else {
+              // Bulk upload or no target: use store's grid placement helper
+              store.addImagesInBatch(loadedImages, imagesPerPage);
+            }
  
             resolve({ count: loadedImages.length });
           } catch (err: any) {
@@ -313,7 +348,7 @@ export function EditorWorkspace() {
 
       // Dropped files from OS
       if (dataTransfer.files && dataTransfer.files.length > 0) {
-        handleUploadFiles(dataTransfer.files);
+        handleUploadFiles(dataTransfer.files, { pageId, position });
       }
     },
     [store, handleUploadFiles]
@@ -563,6 +598,8 @@ export function EditorWorkspace() {
           onDuplicatePage={handleDuplicatePage}
           imagesPerPage={imagesPerPage}
           onSetImagesPerPage={setImagesPerPage}
+          twoPageLayout={twoPageLayout}
+          onSetTwoPageLayout={setTwoPageLayout}
         />
 
         <div className="flex flex-1 overflow-hidden relative">

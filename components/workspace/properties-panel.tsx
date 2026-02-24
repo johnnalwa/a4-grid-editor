@@ -51,6 +51,10 @@ const PAGE_BG_COLORS = [
   { label: "Dark", value: "#1e293b" },
 ];
 
+const A4_WIDTH_PX = 595;
+const A4_HEIGHT_PX = 842;
+const A4_MARGIN_PX = 40;
+
 export function PropertiesPanel({
   isOpen,
   onClose,
@@ -521,6 +525,79 @@ export function PropertiesPanel({
                   }}
                 />
               </div>
+              <div>
+                <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-2.5 block">
+                  Scaling & Layout
+                </Label>
+                <div className="space-y-3">
+                  <div className="grid grid-cols-2 gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-7 text-[10px] px-2 shadow-sm"
+                      onClick={() => {
+                        const ratio = selectedElement.size.height / selectedElement.size.width;
+                        const targetW = A4_WIDTH_PX - (A4_MARGIN_PX * 2);
+                        onUpdateElement({
+                          size: { width: targetW, height: targetW * ratio },
+                          position: { ...selectedElement.position, x: A4_MARGIN_PX }
+                        });
+                      }}
+                    >
+                      Fit Margin
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-7 text-[10px] px-2 shadow-sm"
+                      onClick={() => {
+                        const ratio = selectedElement.size.height / selectedElement.size.width;
+                        onUpdateElement({
+                          size: { width: A4_WIDTH_PX, height: A4_WIDTH_PX * ratio },
+                          position: { ...selectedElement.position, x: 0 }
+                        });
+                      }}
+                    >
+                      Fit Width
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-7 text-[10px] px-2 shadow-sm col-span-2"
+                      onClick={() => {
+                        onUpdateElement({
+                          size: { width: A4_WIDTH_PX, height: A4_HEIGHT_PX },
+                          position: { x: 0, y: 0 }
+                        });
+                      }}
+                    >
+                      Fit Screen (No Margin)
+                    </Button>
+                  </div>
+
+                  <div>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <Label className="text-[10px] text-muted-foreground">Proportional Scale</Label>
+                      <span className="text-[10px] font-mono text-muted-foreground">{Math.round(selectedElement.size.width)}px w</span>
+                    </div>
+                    <Slider
+                      value={[selectedElement.size.width]}
+                      onValueChange={([val]) => {
+                        if (val === selectedElement.size.width) return;
+                        const ratio = selectedElement.size.height / selectedElement.size.width;
+                        onUpdateElement({
+                          size: { width: val, height: val * ratio }
+                        });
+                      }}
+                      min={40}
+                      max={A4_WIDTH_PX + 100}
+                      step={1}
+                      className="py-2"
+                    />
+                  </div>
+                </div>
+              </div>
+
               <div>
                 <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-2 block">
                   Corner Radius

@@ -346,6 +346,102 @@ export function useDocumentStore() {
     sendToBack,
     getSelectedPage,
     getSelectedElement,
+    rearrangePages: (
+      imagesPerPage: number,
+      twoPageLayout: "horizontal" | "vertical" = "vertical"
+    ) => {
+      setState((prev) => {
+        const allImages: PageElement[] = [];
+        prev.pages.forEach((page) => {
+          const images = page.elements
+            .filter((el) => el.type === "image")
+            .sort(
+              (a, b) =>
+                a.position.y - b.position.y || a.position.x - b.position.x
+            );
+          allImages.push(...images);
+        });
+
+        if (allImages.length === 0) return prev;
+
+        let gridCols: number;
+        let gridRows: number;
+
+        if (imagesPerPage === 2) {
+          if (twoPageLayout === "horizontal") {
+            gridCols = 2;
+            gridRows = 1;
+          } else {
+            gridCols = 1;
+            gridRows = 2;
+          }
+        } else if (imagesPerPage === 1) {
+          gridCols = 1;
+          gridRows = 1;
+        } else {
+          gridCols = Math.ceil(Math.sqrt(imagesPerPage));
+          gridRows = Math.ceil(imagesPerPage / gridCols);
+        }
+
+        const margin = 40;
+        const spacing = 20;
+        const availableWidth = 595 - 2 * margin - (gridCols - 1) * spacing;
+        const availableHeight = 842 - 2 * margin - (gridRows - 1) * spacing;
+        const cellW = availableWidth / gridCols;
+        const cellH = availableHeight / gridRows;
+
+        const newPages: DocumentPage[] = [];
+
+        allImages.forEach((el, index) => {
+          const pageIndex = Math.floor(index / imagesPerPage);
+          const indexInPage = index % imagesPerPage;
+
+          if (!newPages[pageIndex]) {
+            const originalPage = prev.pages[pageIndex];
+            newPages[pageIndex] = createPage();
+            if (originalPage) {
+              newPages[pageIndex].backgroundColor = originalPage.backgroundColor;
+            }
+          }
+
+          const row = Math.floor(indexInPage / gridCols);
+          const col = indexInPage % gridCols;
+
+          const pos = {
+            x: margin + col * (cellW + spacing),
+            y: margin + row * (cellH + spacing),
+          };
+
+          const nW = el.naturalWidth || el.size.width;
+          const nH = el.naturalHeight || el.size.height;
+          const scale = Math.min(cellW / nW, cellH / nH, 1);
+
+          const updatedElement: PageElement = {
+            ...el,
+            position: pos,
+            size: {
+              width: Math.round(nW * scale),
+              height: Math.round(nH * scale),
+            },
+            zIndex: indexInPage + 1,
+          };
+
+          newPages[pageIndex].elements.push(updatedElement);
+        });
+
+        // Add any remaining elements that were not images (if any)
+        // Though usually we prioritize images in this grid mode
+        // For simplicity, we just keep the images.
+
+        return {
+          ...prev,
+          pages: newPages,
+          selectedPageId:
+            newPages.find((p) => p.id === prev.selectedPageId)?.id ||
+            newPages[0].id,
+        };
+      });
+    },
     addImagesInBatch: (
       images: { src: string; name: string; width: number; height: number }[],
       imagesPerPage: number

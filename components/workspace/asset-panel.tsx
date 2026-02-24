@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useCallback, useRef } from "react";
+import React, { useState, useCallback, useRef, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -16,6 +16,7 @@ import {
   FileImage,
   ChevronDown,
   ChevronRight,
+  Trash2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -28,6 +29,7 @@ export interface UploadedAsset {
   naturalWidth: number;
   naturalHeight: number;
   size: number;
+  parentFile?: string; // Original PDF name if extracted
 }
 
 interface AssetPanelProps {
@@ -61,10 +63,37 @@ export function AssetPanel({
   const [toolsExpanded, setToolsExpanded] = useState(true);
   const [assetsExpanded, setAssetsExpanded] = useState(true);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
 
   const filteredAssets = uploadedAssets.filter((asset) =>
     asset.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
+
+  // Group assets by parentFile (PDF)
+  const assetGroups = useMemo(() => {
+    const groups: Record<string, UploadedAsset[]> = {};
+    const standalone: UploadedAsset[] = [];
+
+    filteredAssets.forEach((asset) => {
+      if (asset.parentFile) {
+        if (!groups[asset.parentFile]) {
+          groups[asset.parentFile] = [];
+        }
+        groups[asset.parentFile].push(asset);
+      } else {
+        standalone.push(asset);
+      }
+    });
+
+    return { groups, standalone };
+  }, [filteredAssets]);
+
+  const toggleGroup = (groupName: string) => {
+    setExpandedGroups((prev) => ({
+      ...prev,
+      [groupName]: !prev[groupName],
+    }));
+  };
 
   const handleFileChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -237,45 +266,81 @@ export function AssetPanel({
               )}
 
               <div className="space-y-1">
-                {filteredAssets.map((asset) => (
-                  <div
-                    key={asset.id}
-                    draggable
-                    onDragStart={(e) => handleDragStart(e, asset)}
-                    onClick={() => onAddAsset(asset)}
-                    className="flex items-center gap-2.5 p-2 rounded-lg hover:bg-muted transition-colors cursor-pointer group"
-                  >
-                    <div className="w-10 h-10 rounded-md overflow-hidden bg-muted shrink-0 border border-border">
-                      <img
-                        src={asset.thumbnailSrc || "/placeholder.svg"}
-                        alt={asset.name}
-                        className="w-full h-full object-cover"
-                        draggable={false}
-                      />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-[11px] font-medium text-foreground truncate">
-                        {asset.name}
-                      </p>
-                      <p className="text-[9px] text-muted-foreground">
-                        {asset.naturalWidth}x{asset.naturalHeight} -- {formatSize(asset.size)}
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-0.5 shrink-0">
+                {/* Groups (PDFs) */}
+                {Object.entries(assetGroups.groups).map(([groupName, assets]) => (
+                  <div key={groupName} className="space-y-1">
+                    <div className="flex items-center gap-1 w-full group/header">
                       <button
                         type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onRemoveAsset(asset.id);
-                        }}
-                        className="p-1 rounded opacity-0 group-hover:opacity-100 hover:bg-destructive/10 transition-all"
-                        title="Remove asset"
+                        onClick={() => toggleGroup(groupName)}
+                        className="flex items-center gap-2 flex-1 p-2 rounded-lg hover:bg-muted/50 transition-colors text-left"
                       >
-                        <X className="w-3 h-3 text-muted-foreground hover:text-destructive" />
+                        {expandedGroups[groupName] ? (
+                          <ChevronDown className="w-3 h-3 text-muted-foreground" />
+                        ) : (
+                          <ChevronRight className="w-3 h-3 text-muted-foreground" />
+                        )}
+                        <div className="w-7 h-7 rounded bg-primary/10 flex items-center justify-center shrink-0 shadow-sm border border-primary/20">
+                          <FileImage className="w-3.5 h-3.5 text-primary" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-[11px] font-bold text-foreground truncate">
+                            {groupName}
+                          </p>
+                          <p className="text-[9px] text-muted-foreground uppercase tracking-tighter">
+                            {assets.length} {assets.length === 1 ? "page" : "pages"}
+                          </p>
+                        </div>
                       </button>
-                      <GripVertical className="w-3 h-3 text-muted-foreground/30" />
+                      <div className="flex items-center gap-0.5 pr-1 opacity-0 group-hover/header:opacity-100 transition-opacity">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-6 w-6 text-primary hover:text-primary hover:bg-primary/10"
+                          onClick={() => assets.forEach(a => onAddAsset(a))}
+                          title="Add all pages to document"
+                        >
+                          <CloudUpload className="w-3 h-3" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-6 w-6 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                          onClick={() => assets.forEach(a => onRemoveAsset(a.id))}
+                          title="Remove all pages"
+                        >
+                          <Trash2 className="w-3 h-3" />
+                        </Button>
+                      </div>
                     </div>
+
+                    {expandedGroups[groupName] && (
+                      <div className="pl-4 space-y-1 border-l border-border/50 ml-3.5 mt-1">
+                        {assets.map((asset) => (
+                          <AssetItem
+                            key={asset.id}
+                            asset={asset}
+                            onAdd={() => onAddAsset(asset)}
+                            onRemove={() => onRemoveAsset(asset.id)}
+                            onDragStart={(e) => handleDragStart(e, asset)}
+                            formatSize={formatSize}
+                          />
+                        ))}
+                      </div>
+                    )}
                   </div>
+                ))}
+
+                {/* Standalone Assets */}
+                {assetGroups.standalone.map((asset) => (
+                  <AssetItem
+                    key={asset.id}
+                    asset={asset}
+                    onAdd={() => onAddAsset(asset)}
+                    onRemove={() => onRemoveAsset(asset.id)}
+                    onDragStart={(e) => handleDragStart(e, asset)}
+                    formatSize={formatSize}
+                  />
                 ))}
               </div>
             </>
@@ -304,6 +369,60 @@ export function AssetPanel({
         </Button>
       </div>
     </aside>
+  );
+}
+
+function AssetItem({
+  asset,
+  onAdd,
+  onRemove,
+  onDragStart,
+  formatSize,
+}: {
+  asset: UploadedAsset;
+  onAdd: () => void;
+  onRemove: () => void;
+  onDragStart: (e: React.DragEvent) => void;
+  formatSize: (bytes: number) => string;
+}) {
+  return (
+    <div
+      draggable
+      onDragStart={onDragStart}
+      onClick={onAdd}
+      className="flex items-center gap-2.5 p-2 rounded-lg hover:bg-muted transition-colors cursor-pointer group"
+    >
+      <div className="w-8 h-8 rounded-md overflow-hidden bg-muted shrink-0 border border-border group-hover:border-primary/30 transition-colors">
+        <img
+          src={asset.thumbnailSrc || "/placeholder.svg"}
+          alt={asset.name}
+          className="w-full h-full object-cover"
+          draggable={false}
+        />
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className="text-[10px] font-medium text-foreground truncate group-hover:text-primary transition-colors">
+          {asset.name}
+        </p>
+        <p className="text-[8px] text-muted-foreground tracking-tight">
+          {asset.naturalWidth}x{asset.naturalHeight} • {formatSize(asset.size)}
+        </p>
+      </div>
+      <div className="flex items-center gap-0.5 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onRemove();
+          }}
+          className="p-1 rounded hover:bg-destructive/10 transition-colors"
+          title="Remove asset"
+        >
+          <Trash2 className="w-2.5 h-2.5 text-muted-foreground hover:text-destructive" />
+        </button>
+        <GripVertical className="w-3 h-3 text-muted-foreground/30" />
+      </div>
+    </div>
   );
 }
 

@@ -31,6 +31,8 @@ export interface PageElement {
   content?: string; // For text/note
   src?: string; // For image (data URL or object URL)
   fileName?: string; // Original file name for images
+  naturalWidth?: number;
+  naturalHeight?: number;
   fontSize?: number;
   fontWeight?: string;
   textAlign?: "left" | "center" | "right";
@@ -118,8 +120,8 @@ export function createImageElement(
   naturalHeight: number
 ): PageElement {
   // Scale to fit within page bounds while maintaining aspect ratio
-  const maxWidth = A4_WIDTH_PX * 0.6;
-  const maxHeight = A4_HEIGHT_PX * 0.4;
+  const maxWidth = A4_WIDTH_PX * 0.85;
+  const maxHeight = A4_HEIGHT_PX * 0.6;
   const scale = Math.min(
     maxWidth / naturalWidth,
     maxHeight / naturalHeight,
@@ -139,6 +141,8 @@ export function createImageElement(
     opacity: 1,
     src,
     fileName,
+    naturalWidth,
+    naturalHeight,
   };
 }
 

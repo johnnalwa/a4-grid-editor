@@ -43,6 +43,8 @@ interface WorkspaceHeaderProps {
   onDuplicatePage: () => void;
   imagesPerPage: number;
   onSetImagesPerPage: (val: number) => void;
+  twoPageLayout: "horizontal" | "vertical";
+  onSetTwoPageLayout: (val: "horizontal" | "vertical") => void;
 }
 
 export function WorkspaceHeader({
@@ -63,6 +65,8 @@ export function WorkspaceHeader({
   onDuplicatePage,
   imagesPerPage,
   onSetImagesPerPage,
+  twoPageLayout,
+  onSetTwoPageLayout,
 }: WorkspaceHeaderProps) {
   const [isEditingName, setIsEditingName] = useState(false);
   const [nameValue, setNameValue] = useState(documentName);
@@ -161,6 +165,40 @@ export function WorkspaceHeader({
                 </option>
               ))}
             </select>
+            {imagesPerPage === 2 && (
+              <div className="flex items-center gap-0.5 bg-muted rounded-md p-0.5">
+                <button
+                  type="button"
+                  onClick={() => onSetTwoPageLayout("vertical")}
+                  className={`h-6 px-1.5 rounded text-[10px] font-medium transition-all ${
+                    twoPageLayout === "vertical"
+                      ? "bg-primary text-primary-foreground shadow-sm"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                  title="Stack vertically (top/bottom)"
+                >
+                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <rect x="2" y="1" width="10" height="5" rx="1" stroke="currentColor" strokeWidth="1.2"/>
+                    <rect x="2" y="8" width="10" height="5" rx="1" stroke="currentColor" strokeWidth="1.2"/>
+                  </svg>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onSetTwoPageLayout("horizontal")}
+                  className={`h-6 px-1.5 rounded text-[10px] font-medium transition-all ${
+                    twoPageLayout === "horizontal"
+                      ? "bg-primary text-primary-foreground shadow-sm"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                  title="Place side by side (left/right)"
+                >
+                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <rect x="1" y="2" width="5" height="10" rx="1" stroke="currentColor" strokeWidth="1.2"/>
+                    <rect x="8" y="2" width="5" height="10" rx="1" stroke="currentColor" strokeWidth="1.2"/>
+                  </svg>
+                </button>
+              </div>
+            )}
           </div>
  
           <div className="h-5 w-px bg-border hidden lg:block" />

@@ -64,8 +64,10 @@ export function DraggableElement({
   const [isResizing, setIsResizing] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [isCropping, setIsCropping] = useState(false);
+  const [cropResizeType, setCropResizeType] = useState<string | null>(null);
   const dragStart = useRef({ x: 0, y: 0, elX: 0, elY: 0 });
   const resizeStart = useRef({ x: 0, y: 0, w: 0, h: 0 });
+  const cropStart = useRef<{ x: number; y: number; crop: { x: number; y: number; width: number; height: number } } | null>(null);
 
   // -- Drag handling --
   const handlePointerDown = useCallback(
@@ -156,6 +158,71 @@ export function DraggableElement({
       window.removeEventListener("pointerup", handlePointerUp);
     };
   }, [isResizing, containerRef, onResize]);
+ 
+  // -- Crop handling --
+  const handleCropPointerDown = useCallback(
+    (e: React.PointerEvent, type: string) => {
+      e.stopPropagation();
+      setCropResizeType(type);
+      const crop = element.crop || { x: 0, y: 0, width: 1, height: 1 };
+      cropStart.current = {
+        x: e.clientX,
+        y: e.clientY,
+        crop: { ...crop },
+      };
+    },
+    [element.crop]
+  );
+ 
+  useEffect(() => {
+    if (!cropResizeType || !cropStart.current) return;
+ 
+    const handlePointerMove = (e: PointerEvent) => {
+      const container = containerRef.current;
+      if (!container || !cropStart.current) return;
+ 
+      const rect = container.getBoundingClientRect();
+      const scale = rect.width / container.offsetWidth;
+      
+      const dx = (e.clientX - cropStart.current.x) / scale;
+      const dy = (e.clientY - cropStart.current.y) / scale;
+      
+      const { width: cw, height: ch } = element.size;
+      const startCrop = cropStart.current.crop;
+      const newCrop = { ...startCrop };
+ 
+      // Horizontal
+      if (cropResizeType.includes("left")) {
+        const deltaCropX = (dx / cw) * startCrop.width;
+        newCrop.x = Math.max(0, Math.min(startCrop.x + startCrop.width - 0.1, startCrop.x + deltaCropX));
+        newCrop.width = startCrop.width - (newCrop.x - startCrop.x);
+      } else if (cropResizeType.includes("right")) {
+        const deltaCropW = (dx / cw) * startCrop.width;
+        newCrop.width = Math.max(0.1, Math.min(1 - startCrop.x, startCrop.width + deltaCropW));
+      }
+ 
+      // Vertical
+      if (cropResizeType.includes("top")) {
+        const deltaCropY = (dy / ch) * startCrop.height;
+        newCrop.y = Math.max(0, Math.min(startCrop.y + startCrop.height - 0.1, startCrop.y + deltaCropY));
+        newCrop.height = startCrop.height - (newCrop.y - startCrop.y);
+      } else if (cropResizeType.includes("bottom")) {
+        const deltaCropH = (dy / ch) * startCrop.height;
+        newCrop.height = Math.max(0.1, Math.min(1 - startCrop.y, startCrop.height + deltaCropH));
+      }
+ 
+      onUpdate({ crop: newCrop });
+    };
+ 
+    const handlePointerUp = () => setCropResizeType(null);
+ 
+    window.addEventListener("pointermove", handlePointerMove);
+    window.addEventListener("pointerup", handlePointerUp);
+    return () => {
+      window.removeEventListener("pointermove", handlePointerMove);
+      window.removeEventListener("pointerup", handlePointerUp);
+    };
+  }, [cropResizeType, containerRef, element.size, onUpdate]);
 
   // -- Text editing --
   const startEditing = useCallback(() => {
@@ -376,11 +443,51 @@ export function DraggableElement({
 
           {/* Element content */}
           <div
-            className="w-full h-full overflow-hidden"
+            className={cn(
+              "w-full h-full overflow-hidden",
+              isCropping && "ring-4 ring-primary ring-inset shadow-2xl z-30"
+            )}
             style={{ borderRadius: element.borderRadius || 0 }}
           >
             {renderContent()}
+            
+            {/* Crop Overlays */}
+            {isCropping && (
+              <div className="absolute inset-0 pointer-events-none z-40">
+                <div className="absolute inset-0 border-2 border-white/50 border-dashed" />
+                <div className="absolute inset-0 flex flex-wrap">
+                  {[...Array(9)].map((_, i) => (
+                    <div key={i} className="w-1/3 h-1/3 border border-white/20" />
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
+ 
+          {/* Crop Handles */}
+          {isSelected && isCropping && (
+            <div className="absolute inset-0 z-50 pointer-events-none">
+              <CropHandle position="top-left" onPointerDown={(e) => handleCropPointerDown(e, "top-left")} />
+              <CropHandle position="top-right" onPointerDown={(e) => handleCropPointerDown(e, "top-right")} />
+              <CropHandle position="bottom-left" onPointerDown={(e) => handleCropPointerDown(e, "bottom-left")} />
+              <CropHandle position="bottom-right" onPointerDown={(e) => handleCropPointerDown(e, "bottom-right")} />
+              <CropHandle position="top" onPointerDown={(e) => handleCropPointerDown(e, "top")} />
+              <CropHandle position="bottom" onPointerDown={(e) => handleCropPointerDown(e, "bottom")} />
+              <CropHandle position="left" onPointerDown={(e) => handleCropPointerDown(e, "left")} />
+              <CropHandle position="right" onPointerDown={(e) => handleCropPointerDown(e, "right")} />
+              
+              <div className="absolute -top-10 left-1/2 -translate-x-1/2 bg-primary text-primary-foreground px-3 py-1 rounded-full text-[10px] font-bold shadow-lg flex items-center gap-2 pointer-events-auto">
+                <Crop className="w-3 h-3" />
+                <span>Cropping Mode</span>
+                <button 
+                  onClick={() => setIsCropping(false)}
+                  className="bg-white/20 hover:bg-white/30 rounded px-1.5 py-0.5 transition-colors"
+                >
+                  Done
+                </button>
+              </div>
+            </div>
+          )}
 
           {/* File name label for images */}
           {element.type === "image" && (
@@ -586,4 +693,49 @@ function detectDirection(text: string): "rtl" | "ltr" {
   // RTL Unicode ranges: Arabic, Hebrew, Thaana, Syriac, NKo, etc.
   const rtlRegex = /^[\u0590-\u08FF\uFB1D-\uFDFF\uFE70-\uFEFF]/;
   return rtlRegex.test(trimmed) ? "rtl" : "ltr";
+}
+
+function CropHandle({ 
+  position, 
+  onPointerDown 
+}: { 
+  position: string; 
+  onPointerDown: (e: React.PointerEvent) => void 
+}) {
+  const isCorner = position.includes("-");
+  
+  let classes = "absolute w-4 h-4 pointer-events-auto flex items-center justify-center group/handle";
+  let innerClasses = "bg-primary border-2 border-white shadow-md transition-transform group-hover/handle:scale-125";
+  
+  if (position === "top-left") {
+    classes += " -top-1 -left-1 cursor-nwse-resize";
+    innerClasses += " w-3 h-3 rounded-sm";
+  } else if (position === "top-right") {
+    classes += " -top-1 -right-1 cursor-nesw-resize";
+    innerClasses += " w-3 h-3 rounded-sm";
+  } else if (position === "bottom-left") {
+    classes += " -bottom-1 -left-1 cursor-nesw-resize";
+    innerClasses += " w-3 h-3 rounded-sm";
+  } else if (position === "bottom-right") {
+    classes += " -bottom-1 -right-1 cursor-nwse-resize";
+    innerClasses += " w-3 h-3 rounded-sm";
+  } else if (position === "top") {
+    classes += " -top-1 left-1/2 -translate-x-1/2 cursor-ns-resize h-4 w-8";
+    innerClasses += " w-6 h-1.5 rounded-full";
+  } else if (position === "bottom") {
+    classes += " -bottom-1 left-1/2 -translate-x-1/2 cursor-ns-resize h-4 w-8";
+    innerClasses += " w-6 h-1.5 rounded-full";
+  } else if (position === "left") {
+    classes += " top-1/2 -left-1 -translate-y-1/2 cursor-ew-resize w-4 h-8";
+    innerClasses += " w-1.5 h-6 rounded-full";
+  } else if (position === "right") {
+    classes += " top-1/2 -right-1 -translate-y-1/2 cursor-ew-resize w-4 h-8";
+    innerClasses += " w-1.5 h-6 rounded-full";
+  }
+
+  return (
+    <div className={classes} onPointerDown={onPointerDown}>
+      <div className={innerClasses} />
+    </div>
+  );
 }
