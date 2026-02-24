@@ -1,4 +1,3 @@
-// @ts-nocheck
 "use client";
 
 import { useState, useCallback } from "react";
@@ -25,7 +24,6 @@ import {
   Files,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-
 
 interface ExportDialogProps {
   open: boolean;
@@ -70,52 +68,6 @@ export function ExportDialog({
     setSelectedPages(new Set());
   }, []);
 
-  const renderPageToCanvas = useCallback(
-    async (page: DocumentPage): Promise<HTMLCanvasElement> => {
-      const canvas = document.createElement("canvas");
-      // Use 2x resolution for high-quality output
-      const scale = 2;
-      canvas.width = A4_WIDTH_PX * scale;
-      canvas.height = A4_HEIGHT_PX * scale;
-      const ctx = canvas.getContext("2d");
-      if (!ctx) throw new Error("Could not get canvas context");
-
-      ctx.scale(scale, scale);
-
-      // Draw page background
-      ctx.fillStyle = page.backgroundColor;
-      ctx.fillRect(0, 0, A4_WIDTH_PX, A4_HEIGHT_PX);
-
-      // Sort elements by zIndex
-      const sortedElements = [...page.elements].sort(
-        (a, b) => a.zIndex - b.zIndex
-      );
-
-      // Draw each element
-      for (const element of sortedElements) {
-        ctx.save();
-        ctx.globalAlpha = element.opacity;
-
-        if (element.type === "image" && element.src) {
-          await drawImage(ctx, element);
-          // Draw the filename label below the image
-          drawFilenameLabel(ctx, element);
-        } else if (element.type === "text") {
-          drawText(ctx, element);
-        } else if (element.type === "note") {
-          drawNote(ctx, element);
-        } else if (element.type === "shape") {
-          drawShape(ctx, element);
-        }
-
-        ctx.restore();
-      }
-
-      return canvas;
-    },
-    []
-  );
-
   const handleExport = useCallback(async () => {
     const pagesToExport = pages.filter((p) => selectedPages.has(p.id));
     if (pagesToExport.length === 0) return;
@@ -124,11 +76,13 @@ export function ExportDialog({
     setErrorMessage("");
 
     try {
-      // Dynamic import of jsPDF
-      const { default: jsPDF } = await import("jspdf");
+      // Parallel: import jsPDF AND preload all images at the same time
+      const [{ default: jsPDF }, imageCache] = await Promise.all([
+        import("jspdf"),
+        preloadAllImages(pagesToExport),
+      ]);
 
       if (mergeAll) {
-        // Merge all pages into a single PDF
         const pdf = new jsPDF({
           orientation: "portrait",
           unit: "mm",
@@ -136,25 +90,22 @@ export function ExportDialog({
         });
 
         for (let i = 0; i < pagesToExport.length; i++) {
-          if (i > 0) {
-            pdf.addPage("a4", "portrait");
-          }
-          const canvas = await renderPageToCanvas(pagesToExport[i]);
-          const imgData = canvas.toDataURL("image/jpeg", 0.95);
+          if (i > 0) pdf.addPage("a4", "portrait");
+          const canvas = renderPageToCanvas(pagesToExport[i], imageCache);
+          const imgData = canvas.toDataURL("image/jpeg", 0.92);
           pdf.addImage(imgData, "JPEG", 0, 0, A4_WIDTH_MM, A4_HEIGHT_MM);
         }
 
         pdf.save(`${fileName || "document"}.pdf`);
       } else {
-        // Export each page as a separate PDF
         for (let i = 0; i < pagesToExport.length; i++) {
           const pdf = new jsPDF({
             orientation: "portrait",
             unit: "mm",
             format: "a4",
           });
-          const canvas = await renderPageToCanvas(pagesToExport[i]);
-          const imgData = canvas.toDataURL("image/jpeg", 0.95);
+          const canvas = renderPageToCanvas(pagesToExport[i], imageCache);
+          const imgData = canvas.toDataURL("image/jpeg", 0.92);
           pdf.addImage(imgData, "JPEG", 0, 0, A4_WIDTH_MM, A4_HEIGHT_MM);
           pdf.save(`${fileName || "document"}_page${i + 1}.pdf`);
         }
@@ -171,14 +122,7 @@ export function ExportDialog({
         err instanceof Error ? err.message : "Export failed"
       );
     }
-  }, [
-    pages,
-    selectedPages,
-    mergeAll,
-    fileName,
-    renderPageToCanvas,
-    onOpenChange,
-  ]);
+  }, [pages, selectedPages, mergeAll, fileName, onOpenChange]);
 
   const selectedCount = selectedPages.size;
 
@@ -337,43 +281,111 @@ export function ExportDialog({
   );
 }
 
-// Canvas drawing helpers
+// ─── Preload all images in parallel ──────────────────────────────────────────
+
+async function preloadAllImages(
+  pages: DocumentPage[]
+): Promise<Map<string, HTMLImageElement>> {
+  const srcs = new Set<string>();
+  for (const page of pages) {
+    for (const el of page.elements) {
+      if (el.type === "image" && el.src) srcs.add(el.src);
+    }
+  }
+
+  const results = await Promise.allSettled(
+    [...srcs].map(
+      (src) =>
+        new Promise<[string, HTMLImageElement]>((resolve, reject) => {
+          const img = new window.Image();
+          img.crossOrigin = "anonymous";
+          img.onload = () => resolve([src, img]);
+          img.onerror = () => reject(new Error(`Failed to load: ${src.slice(0, 60)}`));
+          img.src = src;
+        })
+    )
+  );
+
+  const cache = new Map<string, HTMLImageElement>();
+  for (const r of results) {
+    if (r.status === "fulfilled") cache.set(r.value[0], r.value[1]);
+  }
+  return cache;
+}
+
+// ─── Synchronous canvas renderer (images preloaded) ───────────────────────────
+
+function renderPageToCanvas(
+  page: DocumentPage,
+  imageCache: Map<string, HTMLImageElement>
+): HTMLCanvasElement {
+  const canvas = document.createElement("canvas");
+  const scale = 2; // 2× for high DPI / crisp PDF
+  canvas.width = A4_WIDTH_PX * scale;
+  canvas.height = A4_HEIGHT_PX * scale;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("Could not get canvas context");
+
+  ctx.scale(scale, scale);
+
+  // Page background
+  ctx.fillStyle = page.backgroundColor;
+  ctx.fillRect(0, 0, A4_WIDTH_PX, A4_HEIGHT_PX);
+
+  // Elements in z-order
+  const sorted = [...page.elements].sort((a, b) => a.zIndex - b.zIndex);
+
+  for (const element of sorted) {
+    ctx.save();
+    ctx.globalAlpha = element.opacity;
+
+    if (element.type === "image" && element.src) {
+      const img = imageCache.get(element.src);
+      if (img) drawImage(ctx, element, img);
+    } else if (element.type === "text") {
+      drawText(ctx, element);
+    } else if (element.type === "note") {
+      drawNote(ctx, element);
+    } else if (element.type === "shape") {
+      drawShape(ctx, element);
+    }
+
+    ctx.restore();
+  }
+
+  return canvas;
+}
+
+// ─── Canvas drawing helpers ───────────────────────────────────────────────────
 
 function drawImage(
   ctx: CanvasRenderingContext2D,
-  element: PageElement
-): Promise<void> {
-  return new Promise((resolve) => {
-    const img = new window.Image();
-    img.crossOrigin = "anonymous";
-    img.onload = () => {
-      if (element.borderRadius) {
-        ctx.save();
-        roundRect(
-          ctx,
-          element.position.x,
-          element.position.y,
-          element.size.width,
-          element.size.height,
-          element.borderRadius
-        );
-        ctx.clip();
-      }
-      ctx.drawImage(
-        img,
-        element.position.x,
-        element.position.y,
-        element.size.width,
-        element.size.height
-      );
-      if (element.borderRadius) {
-        ctx.restore();
-      }
-      resolve();
-    };
-    img.onerror = () => resolve();
-    img.src = element.src || "";
-  });
+  element: PageElement,
+  img: HTMLImageElement
+) {
+  const crop = element.crop ?? { x: 0, y: 0, width: 1, height: 1 };
+  // Source rectangle (pixels in natural image)
+  const sx = img.naturalWidth * crop.x;
+  const sy = img.naturalHeight * crop.y;
+  const sw = img.naturalWidth * crop.width;
+  const sh = img.naturalHeight * crop.height;
+  // Destination rectangle
+  const dx = element.position.x;
+  const dy = element.position.y;
+  const dw = element.size.width;
+  const dh = element.size.height;
+
+  if (element.borderRadius) {
+    ctx.save();
+    roundRect(ctx, dx, dy, dw, dh, element.borderRadius);
+    ctx.clip();
+  }
+
+  ctx.drawImage(img, sx, sy, sw, sh, dx, dy, dw, dh);
+
+  if (element.borderRadius) {
+    ctx.restore();
+  }
 }
 
 function drawText(ctx: CanvasRenderingContext2D, element: PageElement) {
@@ -409,17 +421,8 @@ function drawText(ctx: CanvasRenderingContext2D, element: PageElement) {
 function drawNote(ctx: CanvasRenderingContext2D, element: PageElement) {
   const r = element.borderRadius || 4;
   ctx.fillStyle = element.backgroundColor || "#fef3c7";
-  roundRect(
-    ctx,
-    element.position.x,
-    element.position.y,
-    element.size.width,
-    element.size.height,
-    r
-  );
-  ctx.fill();
+  roundRect(ctx, element.position.x, element.position.y, element.size.width, element.size.height, r);
 
-  // Shadow effect
   ctx.shadowColor = "rgba(0,0,0,0.08)";
   ctx.shadowBlur = 4;
   ctx.shadowOffsetY = 2;
@@ -462,32 +465,16 @@ function drawShape(ctx: CanvasRenderingContext2D, element: PageElement) {
   ctx.fillStyle = element.backgroundColor || "#dbeafe";
   const r = element.borderRadius || 0;
   if (r > 0) {
-    roundRect(
-      ctx,
-      element.position.x,
-      element.position.y,
-      element.size.width,
-      element.size.height,
-      r
-    );
+    roundRect(ctx, element.position.x, element.position.y, element.size.width, element.size.height, r);
     ctx.fill();
   } else {
-    ctx.fillRect(
-      element.position.x,
-      element.position.y,
-      element.size.width,
-      element.size.height
-    );
+    ctx.fillRect(element.position.x, element.position.y, element.size.width, element.size.height);
   }
 }
 
 function roundRect(
   ctx: CanvasRenderingContext2D,
-  x: number,
-  y: number,
-  w: number,
-  h: number,
-  r: number
+  x: number, y: number, w: number, h: number, r: number
 ) {
   ctx.beginPath();
   ctx.moveTo(x + r, y);
@@ -513,65 +500,20 @@ function wrapText(
 
   for (const word of words) {
     const testLine = currentLine ? `${currentLine} ${word}` : word;
-    const metrics = ctx.measureText(testLine);
-    if (metrics.width > maxWidth && currentLine) {
+    if (ctx.measureText(testLine).width > maxWidth && currentLine) {
       lines.push(currentLine);
       currentLine = word;
     } else {
       currentLine = testLine;
     }
   }
-  if (currentLine) {
-    lines.push(currentLine);
-  }
+  if (currentLine) lines.push(currentLine);
   return lines.length > 0 ? lines : [""];
-}
-
-function drawFilenameLabel(ctx: CanvasRenderingContext2D, element: PageElement) {
-  const fileName = element.fileName || "unnamed.png";
-  const fontSize = 9;
-  ctx.save();
-  ctx.font = `500 ${fontSize}px Inter, system-ui, sans-serif`;
-  
-  const textBaseline = element.position.y + element.size.width + 6;
-  const metrics = ctx.measureText(fileName);
-  const paddingX = 6;
-  const paddingY = 3;
-  
-  const bgW = Math.min(element.size.width * 0.95, metrics.width + paddingX * 2);
-  const bgH = fontSize + paddingY * 2;
-  const x = element.position.x + element.size.width / 2;
-  const y = element.position.y + element.size.height + 6;
-
-  // Draw background box
-  ctx.fillStyle = "rgba(255, 255, 255, 0.9)";
-  roundRect(ctx, x - bgW/2, y, bgW, bgH, 3);
-  ctx.fill();
-  
-  // Draw border
-  ctx.strokeStyle = "rgba(0, 0, 0, 0.1)";
-  ctx.lineWidth = 0.5;
-  ctx.stroke();
-
-  // Draw text
-  ctx.fillStyle = "#475569";
-  ctx.textAlign = "center";
-  ctx.textBaseline = "middle";
-  
-  // Truncate text if it doesn't fit
-  let displayTitle = fileName;
-  if (metrics.width > bgW - paddingX * 2) {
-    displayTitle = fileName.substring(0, 15) + "...";
-  }
-  
-  ctx.fillText(displayTitle, x, y + bgH / 2);
-  ctx.restore();
 }
 
 function detectTextDirection(text: string): "rtl" | "ltr" {
   if (!text) return "ltr";
   const trimmed = text.replace(/\s+/g, "");
   if (!trimmed) return "ltr";
-  const rtlRegex = /^[\u0590-\u08FF\uFB1D-\uFDFF\uFE70-\uFEFF]/;
-  return rtlRegex.test(trimmed) ? "rtl" : "ltr";
+  return /^[\u0590-\u08FF\uFB1D-\uFDFF\uFE70-\uFEFF]/.test(trimmed) ? "rtl" : "ltr";
 }

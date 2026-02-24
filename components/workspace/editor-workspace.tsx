@@ -15,6 +15,8 @@ import { PropertiesPanel } from "./properties-panel";
 import { ZoomControls } from "./zoom-controls";
 import { StatusBar } from "./status-bar";
 import { ExportDialog } from "./export-dialog";
+import { CameraModal } from "./camera-modal";
+import { RemoteCameraModal } from "./remote-camera-modal";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useDocumentStore } from "@/hooks/use-document-store";
 import { cn } from "@/lib/utils";
@@ -36,6 +38,10 @@ export function EditorWorkspace() {
   const [isMobile, setIsMobile] = useState(false);
   const [darkMode, setDarkMode] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
+  const [cameraOpen, setCameraOpen] = useState(false);
+  const [remoteCameraOpen, setRemoteCameraOpen] = useState(false);
+  // Global capture counter — shared across local and remote sessions so names never collide
+  const captureCounter = useRef(0);
 
   // Responsive check
   useEffect(() => {
@@ -256,6 +262,20 @@ export function EditorWorkspace() {
   const handleRemoveAsset = useCallback((id: string) => {
     setUploadedAssets((prev) => prev.filter((a) => a.id !== id));
   }, []);
+
+  // --------------- Camera capture handler ---------------
+  // Called by both CameraModal (local) and RemoteCameraModal (remote) on each captured image.
+  // Adds the asset to the panel AND places it on the current/next available page immediately.
+  const handleCameraCapture = useCallback(
+    (asset: UploadedAsset) => {
+      setUploadedAssets((prev) => [...prev, asset]);
+      store.addImagesInBatch(
+        [{ src: asset.src, name: asset.name, width: asset.naturalWidth, height: asset.naturalHeight }],
+        imagesPerPage
+      );
+    },
+    [store, imagesPerPage]
+  );
 
   // Hidden file input handler for page context menu "Upload Image"
   const handleFileInputChange = useCallback(
@@ -488,7 +508,10 @@ export function EditorWorkspace() {
           active.tagName === "INPUT" ||
           active.tagName === "TEXTAREA");
 
-      if ((e.metaKey || e.ctrlKey) && e.key === "=") {
+      if ((e.metaKey || e.ctrlKey) && e.key === "z" && !isTextInput) {
+        e.preventDefault();
+        store.undo();
+      } else if ((e.metaKey || e.ctrlKey) && e.key === "=") {
         e.preventDefault();
         handleZoomIn();
       } else if ((e.metaKey || e.ctrlKey) && e.key === "-") {
@@ -600,6 +623,8 @@ export function EditorWorkspace() {
           onSetImagesPerPage={setImagesPerPage}
           twoPageLayout={twoPageLayout}
           onSetTwoPageLayout={setTwoPageLayout}
+          canUndo={store.canUndo}
+          onUndo={store.undo}
         />
 
         <div className="flex flex-1 overflow-hidden relative">
@@ -619,6 +644,8 @@ export function EditorWorkspace() {
               selectedPageId={store.state.selectedPageId}
               isMobile={isMobile}
               onClose={() => setAssetPanelOpen(false)}
+              onOpenCamera={() => setCameraOpen(true)}
+              onOpenRemoteCamera={() => setRemoteCameraOpen(true)}
             />
           </div>
 
@@ -695,6 +722,7 @@ export function EditorWorkspace() {
                     hasClipboard={clipboard !== null}
                     pageCount={store.state.pages.length}
                     isMobile={isMobile}
+                    onMoveStart={store.recordSnapshot}
                   />
                 ))}
               </div>
@@ -757,6 +785,22 @@ export function EditorWorkspace() {
           onOpenChange={setExportOpen}
           pages={store.state.pages}
           documentName={store.state.name}
+        />
+
+        {/* Local camera capture */}
+        <CameraModal
+          open={cameraOpen}
+          onClose={() => setCameraOpen(false)}
+          onCapture={handleCameraCapture}
+          captureCounter={captureCounter}
+        />
+
+        {/* Remote camera via QR code */}
+        <RemoteCameraModal
+          open={remoteCameraOpen}
+          onClose={() => setRemoteCameraOpen(false)}
+          onCapture={handleCameraCapture}
+          captureCounter={captureCounter}
         />
       </div>
     </TooltipProvider>

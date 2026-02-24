@@ -23,6 +23,7 @@ import {
   Check,
   Trash2,
   Copy,
+  Undo2,
 } from "lucide-react";
 
 interface WorkspaceHeaderProps {
@@ -45,6 +46,8 @@ interface WorkspaceHeaderProps {
   onSetImagesPerPage: (val: number) => void;
   twoPageLayout: "horizontal" | "vertical";
   onSetTwoPageLayout: (val: "horizontal" | "vertical") => void;
+  canUndo: boolean;
+  onUndo: () => void;
 }
 
 export function WorkspaceHeader({
@@ -67,6 +70,8 @@ export function WorkspaceHeader({
   onSetImagesPerPage,
   twoPageLayout,
   onSetTwoPageLayout,
+  canUndo,
+  onUndo,
 }: WorkspaceHeaderProps) {
   const [isEditingName, setIsEditingName] = useState(false);
   const [nameValue, setNameValue] = useState(documentName);
@@ -281,6 +286,22 @@ export function WorkspaceHeader({
               <div className="h-5 w-px bg-border mx-0.5" />
             </div>
           )}
+
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 text-muted-foreground hover:text-foreground disabled:opacity-40"
+                onClick={onUndo}
+                disabled={!canUndo}
+              >
+                <Undo2 className="w-4 h-4" />
+                <span className="sr-only">Undo</span>
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Undo (Ctrl+Z)</TooltipContent>
+          </Tooltip>
 
           <Tooltip>
             <TooltipTrigger asChild>

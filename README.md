@@ -78,4 +78,4 @@ The application follows a modular component-based architecture:
 
 ---
 
-Developed with ❤️ by the A4 Grid Editor Team.
+Developed with ❤️ by the Innotech Prime Softwares Team.

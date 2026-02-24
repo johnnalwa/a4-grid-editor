@@ -53,6 +53,8 @@ interface PageCanvasProps {
   hasClipboard: boolean;
   pageCount: number;
   isMobile?: boolean;
+  /** Called when a drag or resize starts — used to record undo snapshot */
+  onMoveStart?: () => void;
 }
 
 export function PageCanvas({
@@ -82,6 +84,7 @@ export function PageCanvas({
   hasClipboard,
   pageCount,
   isMobile = false,
+  onMoveStart,
 }: PageCanvasProps) {
   const [guides, setGuides] = React.useState<{ x: number[]; y: number[] }>({
     x: [],
@@ -338,6 +341,7 @@ export function PageCanvas({
                   onBringToFront={() => onBringToFront(element.id)}
                   onSendToBack={() => onSendToBack(element.id)}
                   onCopyToClipboard={() => onCopyElement(element.id)}
+                  onDragStart={onMoveStart}
                   onDragEnd={() => setGuides({ x: [], y: [] })}
                   containerRef={containerRef}
                 />

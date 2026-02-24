@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
 import type {
   DocumentState,
   DocumentPage,
@@ -29,9 +29,46 @@ const initialState: DocumentState = {
   selectedElementId: null,
 };
 
+const MAX_HISTORY = 50;
+
 export function useDocumentStore() {
   const [state, setState] = useState<DocumentState>(initialState);
+  // Undo history — stored in a ref so we never trigger re-renders
+  const undoStack = useRef<DocumentState[]>([]);
 
+  /**
+   * Push the CURRENT state onto the undo stack before a mutation.
+   * Call this inside a setState callback so we get the real `prev`.
+   */
+  function pushHistory(prev: DocumentState) {
+    undoStack.current = [
+      ...undoStack.current.slice(-(MAX_HISTORY - 1)),
+      prev,
+    ];
+  }
+
+  // ── Undo ──────────────────────────────────────────────────────────────────
+  const undo = useCallback(() => {
+    if (undoStack.current.length === 0) return;
+    const previous = undoStack.current[undoStack.current.length - 1];
+    undoStack.current = undoStack.current.slice(0, -1);
+    setState(previous);
+  }, []);
+
+  const canUndo = undoStack.current.length > 0;
+
+  /**
+   * Snapshot the current state for undo — used by drag/resize START events
+   * so each continuous move doesn't flood the history.
+   */
+  const recordSnapshot = useCallback(() => {
+    setState((prev) => {
+      pushHistory(prev);
+      return prev; // no state change, just record
+    });
+  }, []);
+
+  // ── Document ──────────────────────────────────────────────────────────────
   const setDocumentName = useCallback((name: string) => {
     setState((prev) => ({ ...prev, name }));
   }, []);
@@ -48,19 +85,24 @@ export function useDocumentStore() {
     setState((prev) => ({ ...prev, selectedElementId: elementId }));
   }, []);
 
+  // ── Pages ─────────────────────────────────────────────────────────────────
   const addPage = useCallback(() => {
-    const newPage = createPage();
-    setState((prev) => ({
-      ...prev,
-      pages: [...prev.pages, newPage],
-      selectedPageId: newPage.id,
-      selectedElementId: null,
-    }));
+    setState((prev) => {
+      pushHistory(prev);
+      const newPage = createPage();
+      return {
+        ...prev,
+        pages: [...prev.pages, newPage],
+        selectedPageId: newPage.id,
+        selectedElementId: null,
+      };
+    });
   }, []);
 
   const deletePage = useCallback((pageId: string) => {
     setState((prev) => {
       if (prev.pages.length <= 1) return prev;
+      pushHistory(prev);
       const newPages = prev.pages.filter((p) => p.id !== pageId);
       const newSelectedPageId =
         prev.selectedPageId === pageId ? newPages[0]?.id ?? null : prev.selectedPageId;
@@ -77,6 +119,7 @@ export function useDocumentStore() {
     setState((prev) => {
       const pageIndex = prev.pages.findIndex((p) => p.id === pageId);
       if (pageIndex === -1) return prev;
+      pushHistory(prev);
       const original = prev.pages[pageIndex];
       const duplicate: DocumentPage = {
         ...original,
@@ -113,27 +156,27 @@ export function useDocumentStore() {
     []
   );
 
-  // Element operations
+  // ── Elements ──────────────────────────────────────────────────────────────
   const addElement = useCallback(
     (pageId: string, element: PageElement) => {
-      setState((prev) => ({
-        ...prev,
-        pages: prev.pages.map((p) =>
-          p.id === pageId
-            ? {
-                ...p,
-                elements: [
-                  ...p.elements,
-                  {
-                    ...element,
-                    zIndex: p.elements.length + 1,
-                  },
-                ],
-              }
-            : p
-        ),
-        selectedElementId: element.id,
-      }));
+      setState((prev) => {
+        pushHistory(prev);
+        return {
+          ...prev,
+          pages: prev.pages.map((p) =>
+            p.id === pageId
+              ? {
+                  ...p,
+                  elements: [
+                    ...p.elements,
+                    { ...element, zIndex: p.elements.length + 1 },
+                  ],
+                }
+              : p
+          ),
+          selectedElementId: element.id,
+        };
+      });
     },
     []
   );
@@ -159,16 +202,19 @@ export function useDocumentStore() {
 
   const deleteElement = useCallback(
     (pageId: string, elementId: string) => {
-      setState((prev) => ({
-        ...prev,
-        pages: prev.pages.map((p) =>
-          p.id === pageId
-            ? { ...p, elements: p.elements.filter((el) => el.id !== elementId) }
-            : p
-        ),
-        selectedElementId:
-          prev.selectedElementId === elementId ? null : prev.selectedElementId,
-      }));
+      setState((prev) => {
+        pushHistory(prev);
+        return {
+          ...prev,
+          pages: prev.pages.map((p) =>
+            p.id === pageId
+              ? { ...p, elements: p.elements.filter((el) => el.id !== elementId) }
+              : p
+          ),
+          selectedElementId:
+            prev.selectedElementId === elementId ? null : prev.selectedElementId,
+        };
+      });
     },
     []
   );
@@ -201,13 +247,7 @@ export function useDocumentStore() {
       position?: Position
     ) => {
       const pos = position || { x: 40, y: 40 };
-      const element = createImageElement(
-        pos,
-        src,
-        fileName,
-        naturalWidth,
-        naturalHeight
-      );
+      const element = createImageElement(pos, src, fileName, naturalWidth, naturalHeight);
       addElement(pageId, element);
     },
     [addElement]
@@ -229,6 +269,7 @@ export function useDocumentStore() {
         if (!page) return prev;
         const el = page.elements.find((e) => e.id === elementId);
         if (!el) return prev;
+        pushHistory(prev);
         const newEl: PageElement = {
           ...el,
           id: `el-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
@@ -297,33 +338,28 @@ export function useDocumentStore() {
   );
 
   const resizeElement = useCallback(
-    (
-      pageId: string,
-      elementId: string,
-      size: { width: number; height: number }
-    ) => {
+    (pageId: string, elementId: string, size: { width: number; height: number }) => {
       updateElement(pageId, elementId, { size });
     },
     [updateElement]
   );
 
   const getSelectedPage = useCallback((): DocumentPage | null => {
-    return (
-      state.pages.find((p) => p.id === state.selectedPageId) ?? null
-    );
+    return state.pages.find((p) => p.id === state.selectedPageId) ?? null;
   }, [state.pages, state.selectedPageId]);
 
   const getSelectedElement = useCallback((): PageElement | null => {
     if (!state.selectedPageId || !state.selectedElementId) return null;
     const page = state.pages.find((p) => p.id === state.selectedPageId);
     if (!page) return null;
-    return (
-      page.elements.find((el) => el.id === state.selectedElementId) ?? null
-    );
+    return page.elements.find((el) => el.id === state.selectedElementId) ?? null;
   }, [state.pages, state.selectedPageId, state.selectedElementId]);
 
   return {
     state,
+    undo,
+    canUndo,
+    recordSnapshot,
     setDocumentName,
     selectPage,
     selectElement,
@@ -355,14 +391,13 @@ export function useDocumentStore() {
         prev.pages.forEach((page) => {
           const images = page.elements
             .filter((el) => el.type === "image")
-            .sort(
-              (a, b) =>
-                a.position.y - b.position.y || a.position.x - b.position.x
-            );
+            .sort((a, b) => a.position.y - b.position.y || a.position.x - b.position.x);
           allImages.push(...images);
         });
 
         if (allImages.length === 0) return prev;
+
+        pushHistory(prev);
 
         let gridCols: number;
         let gridRows: number;
@@ -397,8 +432,8 @@ export function useDocumentStore() {
           const indexInPage = index % imagesPerPage;
 
           if (!newPages[pageIndex]) {
-            const originalPage = prev.pages[pageIndex];
             newPages[pageIndex] = createPage();
+            const originalPage = prev.pages[pageIndex];
             if (originalPage) {
               newPages[pageIndex].backgroundColor = originalPage.backgroundColor;
             }
@@ -406,7 +441,6 @@ export function useDocumentStore() {
 
           const row = Math.floor(indexInPage / gridCols);
           const col = indexInPage % gridCols;
-
           const pos = {
             x: margin + col * (cellW + spacing),
             y: margin + row * (cellH + spacing),
@@ -429,10 +463,6 @@ export function useDocumentStore() {
           newPages[pageIndex].elements.push(updatedElement);
         });
 
-        // Add any remaining elements that were not images (if any)
-        // Though usually we prioritize images in this grid mode
-        // For simplicity, we just keep the images.
-
         return {
           ...prev,
           pages: newPages,
@@ -447,47 +477,48 @@ export function useDocumentStore() {
       imagesPerPage: number
     ) => {
       setState((prev) => {
+        pushHistory(prev);
+
         let newPages = [...prev.pages];
-        let currentPageIndex = prev.selectedPageId 
-          ? newPages.findIndex(p => p.id === prev.selectedPageId)
+        let currentPageIndex = prev.selectedPageId
+          ? newPages.findIndex((p) => p.id === prev.selectedPageId)
           : 0;
-        
+
         if (currentPageIndex === -1) currentPageIndex = 0;
-        
+
         const gridCols = Math.ceil(Math.sqrt(imagesPerPage));
-        const gridRows = Math.ceil(imagesPerPage / gridCols);
         const margin = 40;
         const spacing = 20;
         const availableWidth = 595 - 2 * margin - (gridCols - 1) * spacing;
-        const availableHeight = 842 - 2 * margin - (gridRows - 1) * spacing;
+        const availableHeight = 842 - 2 * margin - (Math.ceil(imagesPerPage / gridCols) - 1) * spacing;
         const cellW = availableWidth / gridCols;
-        const cellH = availableHeight / gridRows;
+        const cellH = availableHeight / Math.ceil(imagesPerPage / gridCols);
 
         const currentPage = newPages[currentPageIndex];
-        const existingImagesCount = currentPage?.elements.filter(el => el.type === 'image').length || 0;
+        const existingImagesCount =
+          currentPage?.elements.filter((el) => el.type === "image").length || 0;
 
         images.forEach((img, index) => {
           let targetPageIndex: number;
           let indexInPage: number;
 
           if (images.length === 1) {
-            // Single image/screenshot: stay on current page
             targetPageIndex = currentPageIndex;
-            // Use next slot if available, otherwise overlap at the first slot
-            indexInPage = existingImagesCount < imagesPerPage ? existingImagesCount : 0;
+            indexInPage =
+              existingImagesCount < imagesPerPage ? existingImagesCount : 0;
           } else {
-            // Bulk upload: fill current page then move to next
-            const virtualIndex = index + (existingImagesCount < imagesPerPage ? existingImagesCount : 0);
+            const virtualIndex =
+              index +
+              (existingImagesCount < imagesPerPage ? existingImagesCount : 0);
             const pageOffset = Math.floor(virtualIndex / imagesPerPage);
             indexInPage = virtualIndex % imagesPerPage;
             targetPageIndex = currentPageIndex + pageOffset;
           }
-          
-          // Ensure pages exist
+
           while (targetPageIndex >= newPages.length) {
             newPages.push(createPage());
           }
-          
+
           const row = Math.floor(indexInPage / gridCols);
           const col = indexInPage % gridCols;
           const pos = {
@@ -495,22 +526,17 @@ export function useDocumentStore() {
             y: margin + row * (cellH + spacing),
           };
 
-          // If overlapping due to being full, add a slight offset
           if (images.length === 1 && existingImagesCount >= imagesPerPage) {
             pos.x += 20;
             pos.y += 20;
           }
 
-          const element = createImageElement(
-            pos,
-            img.src,
-            img.name,
-            img.width,
-            img.height
+          const element = createImageElement(pos, img.src, img.name, img.width, img.height);
+          const scale = Math.min(
+            cellW / element.size.width,
+            cellH / element.size.height,
+            1
           );
-          
-          // Re-scale to fit cell if needed
-          const scale = Math.min(cellW / element.size.width, cellH / element.size.height, 1);
           element.size.width *= scale;
           element.size.height *= scale;
 
@@ -518,13 +544,16 @@ export function useDocumentStore() {
             ...newPages[targetPageIndex],
             elements: [
               ...newPages[targetPageIndex].elements,
-              { ...element, zIndex: newPages[targetPageIndex].elements.length + 1 }
-            ]
+              {
+                ...element,
+                zIndex: newPages[targetPageIndex].elements.length + 1,
+              },
+            ],
           };
         });
 
         return { ...prev, pages: newPages };
       });
-    }
+    },
   };
 }

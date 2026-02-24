@@ -72,7 +72,8 @@ export function DraggableElement({
   // -- Drag handling --
   const handlePointerDown = useCallback(
     (e: React.PointerEvent) => {
-      if (element.locked || isEditing) return;
+      // Don't start a drag while in crop mode — crop handles handle their own events
+      if (element.locked || isEditing || isCropping) return;
       if (!e.isPrimary) return;
       e.stopPropagation();
       onSelect();
@@ -85,7 +86,7 @@ export function DraggableElement({
         elY: element.position.y,
       };
     },
-    [element.locked, element.position, isEditing, onSelect]
+    [element.locked, element.position, isEditing, isCropping, onSelect, onDragStart]
   );
 
   useEffect(() => {
@@ -191,24 +192,24 @@ export function DraggableElement({
       const startCrop = cropStart.current.crop;
       const newCrop = { ...startCrop };
  
-      // Horizontal
+      // Horizontal — delta is simply pixel movement / element display size → image fraction
       if (cropResizeType.includes("left")) {
-        const deltaCropX = (dx / cw) * startCrop.width;
-        newCrop.x = Math.max(0, Math.min(startCrop.x + startCrop.width - 0.1, startCrop.x + deltaCropX));
-        newCrop.width = startCrop.width - (newCrop.x - startCrop.x);
+        const deltaCropX = dx / cw;
+        newCrop.x = Math.max(0, Math.min(startCrop.x + startCrop.width - 0.05, startCrop.x + deltaCropX));
+        newCrop.width = Math.max(0.05, startCrop.width - (newCrop.x - startCrop.x));
       } else if (cropResizeType.includes("right")) {
-        const deltaCropW = (dx / cw) * startCrop.width;
-        newCrop.width = Math.max(0.1, Math.min(1 - startCrop.x, startCrop.width + deltaCropW));
+        const deltaCropW = dx / cw;
+        newCrop.width = Math.max(0.05, Math.min(1 - startCrop.x, startCrop.width + deltaCropW));
       }
- 
+
       // Vertical
       if (cropResizeType.includes("top")) {
-        const deltaCropY = (dy / ch) * startCrop.height;
-        newCrop.y = Math.max(0, Math.min(startCrop.y + startCrop.height - 0.1, startCrop.y + deltaCropY));
-        newCrop.height = startCrop.height - (newCrop.y - startCrop.y);
+        const deltaCropY = dy / ch;
+        newCrop.y = Math.max(0, Math.min(startCrop.y + startCrop.height - 0.05, startCrop.y + deltaCropY));
+        newCrop.height = Math.max(0.05, startCrop.height - (newCrop.y - startCrop.y));
       } else if (cropResizeType.includes("bottom")) {
-        const deltaCropH = (dy / ch) * startCrop.height;
-        newCrop.height = Math.max(0.1, Math.min(1 - startCrop.y, startCrop.height + deltaCropH));
+        const deltaCropH = dy / ch;
+        newCrop.height = Math.max(0.05, Math.min(1 - startCrop.y, startCrop.height + deltaCropH));
       }
  
       onUpdate({ crop: newCrop });
@@ -559,8 +560,8 @@ export function DraggableElement({
                 </button>
               </div>
 
-              {/* Resize handle */}
-              {!element.locked && (
+              {/* Resize handle — hidden in crop mode to avoid conflict with crop handles */}
+              {!element.locked && !isCropping && (
                 <div
                   className="absolute -bottom-1 -right-1 w-4 h-4 cursor-se-resize z-20"
                   onPointerDown={handleResizePointerDown}

@@ -17,6 +17,8 @@ import {
   ChevronDown,
   ChevronRight,
   Trash2,
+  Camera,
+  QrCode,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -44,6 +46,8 @@ interface AssetPanelProps {
   selectedPageId: string | null;
   isMobile?: boolean;
   onClose?: () => void;
+  onOpenCamera?: () => void;
+  onOpenRemoteCamera?: () => void;
 }
 
 export function AssetPanel({
@@ -58,6 +62,8 @@ export function AssetPanel({
   selectedPageId,
   isMobile = false,
   onClose,
+  onOpenCamera,
+  onOpenRemoteCamera,
 }: AssetPanelProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [toolsExpanded, setToolsExpanded] = useState(true);
@@ -215,6 +221,18 @@ export function AssetPanel({
                 icon={<ImageIcon className="w-4 h-4" />}
                 label="Image"
                 onClick={() => fileInputRef.current?.click()}
+                disabled={false}
+              />
+              <ToolButton
+                icon={<Camera className="w-4 h-4" />}
+                label="Camera"
+                onClick={() => onOpenCamera?.()}
+                disabled={false}
+              />
+              <ToolButton
+                icon={<QrCode className="w-4 h-4" />}
+                label="Remote"
+                onClick={() => onOpenRemoteCamera?.()}
                 disabled={false}
               />
             </div>
