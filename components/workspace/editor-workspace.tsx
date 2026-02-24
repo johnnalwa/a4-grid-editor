@@ -4,6 +4,7 @@ import React from "react"
 
 import { useState, useCallback, useEffect, useMemo, useRef } from "react";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { WorkspaceHeader } from "./workspace-header";
 import { convertPdfToImages } from "@/lib/pdf-utils";
@@ -27,6 +28,14 @@ import {
   createImageElement,
   createShapeElement,
 } from "@/lib/document-types";
+import {
+  PanelLeft,
+  SlidersHorizontal,
+  Layers,
+  ChevronLeft,
+  ChevronRight,
+  Plus,
+} from "lucide-react";
 
 const ZOOM_STEPS = [25, 50, 75, 100, 125, 150, 175, 200];
 
@@ -40,6 +49,7 @@ export function EditorWorkspace() {
   const [exportOpen, setExportOpen] = useState(false);
   const [cameraOpen, setCameraOpen] = useState(false);
   const [remoteCameraOpen, setRemoteCameraOpen] = useState(false);
+  const [mobilePageListOpen, setMobilePageListOpen] = useState(false);
   // Global capture counter — shared across local and remote sessions so names never collide
   const captureCounter = useRef(0);
 
@@ -644,19 +654,32 @@ export function EditorWorkspace() {
               selectedPageId={store.state.selectedPageId}
               isMobile={isMobile}
               onClose={() => setAssetPanelOpen(false)}
-              onOpenCamera={() => setCameraOpen(true)}
-              onOpenRemoteCamera={() => setRemoteCameraOpen(true)}
+              onOpenCamera={() => {
+                if (isMobile) setAssetPanelOpen(false);
+                setCameraOpen(true);
+              }}
+              onOpenRemoteCamera={() => {
+                if (isMobile) setAssetPanelOpen(false);
+                setRemoteCameraOpen(true);
+              }}
             />
           </div>
 
-          {/* Page thumbnails list - Hide on mobile */}
-          {!isMobile && (
-            <PageList
-              pages={store.state.pages}
-              selectedPageId={store.state.selectedPageId}
-              onSelectPage={store.selectPage}
-              onAddPage={store.addPage}
-            />
+          {/* Page thumbnails list - Overlay on mobile, sidebar on desktop */}
+          {(!isMobile || mobilePageListOpen) && (
+            <div className={cn(
+              isMobile ? "absolute inset-y-0 left-0 z-[100] shadow-2xl bg-surface" : "relative"
+            )}>
+              <PageList
+                pages={store.state.pages}
+                selectedPageId={store.state.selectedPageId}
+                onSelectPage={(id) => {
+                  store.selectPage(id);
+                  if (isMobile) setMobilePageListOpen(false);
+                }}
+                onAddPage={store.addPage}
+              />
+            </div>
           )}
 
           {/* Main canvas area */}
@@ -758,16 +781,116 @@ export function EditorWorkspace() {
           )}
           
           {/* Mobile Backdrops */}
-          {isMobile && (assetPanelOpen || (propertiesPanelOpen && (selectedElement || selectedPage))) && (
+          {isMobile && (assetPanelOpen || mobilePageListOpen || (propertiesPanelOpen && (selectedElement || selectedPage))) && (
             <div 
               className="absolute inset-0 bg-black/20 backdrop-blur-[1px] z-50 animate-in fade-in duration-200"
               onClick={() => {
                 setAssetPanelOpen(false);
                 setPropertiesPanelOpen(false);
+                setMobilePageListOpen(false);
               }}
             />
           )}
         </div>
+
+        {/* ── Mobile Bottom Toolbar ── */}
+        {isMobile && (
+          <div className="h-12 border-t border-border bg-surface flex items-center justify-between px-2 shrink-0 z-30">
+            {/* Left group */}
+            <div className="flex items-center gap-1">
+              <Button
+                variant={assetPanelOpen ? "secondary" : "ghost"}
+                size="icon"
+                className="h-9 w-9"
+                onClick={() => {
+                  setAssetPanelOpen((p) => !p);
+                  setPropertiesPanelOpen(false);
+                  setMobilePageListOpen(false);
+                }}
+                title="Assets & Tools"
+              >
+                <PanelLeft className="w-4 h-4" />
+              </Button>
+              <Button
+                variant={mobilePageListOpen ? "secondary" : "ghost"}
+                size="icon"
+                className="h-9 w-9"
+                onClick={() => {
+                  setMobilePageListOpen((p) => !p);
+                  setAssetPanelOpen(false);
+                  setPropertiesPanelOpen(false);
+                }}
+                title="Pages"
+              >
+                <Layers className="w-4 h-4" />
+              </Button>
+            </div>
+
+            {/* Center: page navigation */}
+            <div className="flex items-center gap-1">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8"
+                disabled={!store.state.selectedPageId || store.state.pages.findIndex(p => p.id === store.state.selectedPageId) <= 0}
+                onClick={() => {
+                  const idx = store.state.pages.findIndex(p => p.id === store.state.selectedPageId);
+                  if (idx > 0) store.selectPage(store.state.pages[idx - 1].id);
+                }}
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </Button>
+              <span className="text-[11px] font-medium text-muted-foreground tabular-nums min-w-[60px] text-center">
+                {store.state.selectedPageId
+                  ? `${store.state.pages.findIndex(p => p.id === store.state.selectedPageId) + 1} / ${store.state.pages.length}`
+                  : `${store.state.pages.length} pages`
+                }
+              </span>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8"
+                disabled={!store.state.selectedPageId || store.state.pages.findIndex(p => p.id === store.state.selectedPageId) >= store.state.pages.length - 1}
+                onClick={() => {
+                  const idx = store.state.pages.findIndex(p => p.id === store.state.selectedPageId);
+                  if (idx < store.state.pages.length - 1) store.selectPage(store.state.pages[idx + 1].id);
+                }}
+              >
+                <ChevronRight className="w-4 h-4" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8"
+                onClick={store.addPage}
+                title="Add page"
+              >
+                <Plus className="w-4 h-4" />
+              </Button>
+            </div>
+
+            {/* Right group */}
+            <div className="flex items-center gap-1">
+              <Button
+                variant={propertiesPanelOpen ? "secondary" : "ghost"}
+                size="icon"
+                className={cn(
+                  "h-9 w-9",
+                  (selectedElement || selectedPage) && !propertiesPanelOpen && "text-primary"
+                )}
+                onClick={() => {
+                  setPropertiesPanelOpen((p) => !p);
+                  setAssetPanelOpen(false);
+                  setMobilePageListOpen(false);
+                }}
+                disabled={!selectedElement && !selectedPage}
+                title="Properties"
+              >
+                <SlidersHorizontal className="w-4 h-4" />
+              </Button>
+            </div>
+          </div>
+        )}
 
         <div className="hidden sm:block">
           <StatusBar

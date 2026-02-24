@@ -15,10 +15,10 @@ export async function GET(
   { params }: { params: Promise<{ sessionId: string }> }
 ) {
   const { sessionId } = await params;
-  if (!sessionExists(sessionId)) {
+  if (!(await sessionExists(sessionId))) {
     return NextResponse.json({ error: "not_found" }, { status: 404, headers: CORS });
   }
-  const data = getOffer(sessionId);
+  const data = await getOffer(sessionId);
   return NextResponse.json(
     { offer: data?.offer ?? null, offerVersion: data?.version ?? 0 },
     { headers: CORS }
@@ -31,11 +31,11 @@ export async function POST(
   { params }: { params: Promise<{ sessionId: string }> }
 ) {
   const { sessionId } = await params;
-  if (!sessionExists(sessionId)) {
+  if (!(await sessionExists(sessionId))) {
     return NextResponse.json({ error: "not_found" }, { status: 404, headers: CORS });
   }
   const { offer } = (await request.json()) as { offer: RTCSessionDescriptionInit };
-  setOffer(sessionId, offer);
+  await setOffer(sessionId, offer);
   return NextResponse.json({ ok: true }, { headers: CORS });
 }
 

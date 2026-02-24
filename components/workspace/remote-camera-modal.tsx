@@ -40,18 +40,17 @@ function gatherIce(pc: RTCPeerConnection): Promise<void> {
       clearTimeout(hardTimeout);
       resolve();
     };
-    const hardTimeout = setTimeout(done, 2_000);
-    pc.addEventListener("icegatheringstatechange", function check() {
-      if (pc.iceGatheringState === "complete") {
-        pc.removeEventListener("icegatheringstatechange", check);
-        done();
-      }
+    const hardTimeout = setTimeout(done, 2000); // hard cap
+    
+    pc.addEventListener("icegatheringstatechange", () => {
+      if (pc.iceGatheringState === "complete") done();
     });
+
     pc.addEventListener("icecandidate", (ev) => {
       if (!ev.candidate) { done(); return; }
-      // First host candidate means the LAN path is ready; wait 400ms for more
-      if (!earlyTimer && ev.candidate.type === "host") {
-        earlyTimer = setTimeout(done, 400);
+      // Start a tight timer as soon as we have at least one candidate
+      if (!earlyTimer) {
+        earlyTimer = setTimeout(done, 300);
       }
     });
   });
@@ -211,23 +210,24 @@ export function RemoteCameraModal({
 
       setPhase("waiting");
 
-      // Poll for phone's answer — 300ms for near-instant detection
+      // Poll for phone's answer — 200ms for near-instant detection
       pollRef.current = setInterval(async () => {
         const current = pcRef.current;
-        if (!current || current.signalingState === "stable") {
+        if (!current || (current.signalingState as string) === "stable") {
           clearInterval(pollRef.current ?? 0);
           return;
         }
         try {
           const r = await fetch(`/api/webrtc-session/${sid}/answer`);
+          if (!r.ok) return;
           const { answer } = (await r.json()) as { answer: RTCSessionDescriptionInit | null };
-          if (answer && current.signalingState !== "stable") {
+          if (answer && (current.signalingState as string) !== "stable") {
             await current.setRemoteDescription(answer);
             setPhase("connecting");
             clearInterval(pollRef.current ?? 0);
           }
         } catch { /* network blip — retry next tick */ }
-      }, 300);
+      }, 200);
     } catch (e) {
       setErrorMsg(e instanceof Error ? e.message : "Failed to start");
       setPhase("error");
@@ -267,25 +267,23 @@ export function RemoteCameraModal({
   }, [buildOffer]);
 
   // ── Lifecycle ─────────────────────────────────────────────────────────────
+  
+  // Re-opening the modal should not reset a working connection.
   useEffect(() => {
     if (open) {
-      startSession();
-    } else {
+      if (phase === "idle" || phase === "error") {
+        startSession();
+      }
+    }
+  }, [open, phase, startSession]);
+
+  // Clean up WebRTC only when the entire workspace component unmounts
+  useEffect(() => {
+    return () => {
       clearInterval(pollRef.current ?? 0);
       pcRef.current?.close();
-      pcRef.current = null;
-      buildingRef.current = false;
-      sessionIdRef.current = null;
-      setPhase("idle");
-      setSessionId(null);
-      setCameraUrl("");
-      setReceivedAssets([]);
-      setTunnelBase("");
-      setTunnelOpen(false);
-      setIsHosted(false);
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open]);
+    };
+  }, []);
 
   // ─── Render ────────────────────────────────────────────────────────────────
   const statusLabel: Record<Phase, string> = {
@@ -488,9 +486,27 @@ export function RemoteCameraModal({
           </p>
 
           <div className="flex gap-2">
-            <Button variant="outline" size="sm" className="flex-1 text-xs" onClick={startSession} disabled={phase === "creating"}>
-              <RefreshCw className="w-3 h-3 mr-1.5" /> New Session
-            </Button>
+            {phase !== "idle" && phase !== "error" ? (
+              <Button 
+                variant="outline" 
+                size="sm" 
+                className="flex-1 text-xs text-destructive hover:text-destructive hover:bg-destructive/5" 
+                onClick={() => {
+                  clearInterval(pollRef.current ?? 0);
+                  pcRef.current?.close();
+                  pcRef.current = null;
+                  setPhase("idle");
+                  setSessionId(null);
+                  setReceivedAssets([]);
+                }}
+              >
+                <X className="w-3 h-3 mr-1.5" /> Disconnect
+              </Button>
+            ) : (
+              <Button variant="outline" size="sm" className="flex-1 text-xs" onClick={startSession}>
+                <RefreshCw className="w-3 h-3 mr-1.5" /> New Session
+              </Button>
+            )}
             <Button size="sm" className="flex-1 text-xs" onClick={onClose}>
               {receivedAssets.length > 0 ? `Done (${receivedAssets.length} added)` : "Close"}
             </Button>

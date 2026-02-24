@@ -33,18 +33,17 @@ function gatherIce(pc: RTCPeerConnection): Promise<void> {
       clearTimeout(hardTimeout);
       resolve();
     };
-    const hardTimeout = setTimeout(done, 2_000);
-    pc.addEventListener("icegatheringstatechange", function check() {
-      if (pc.iceGatheringState === "complete") {
-        pc.removeEventListener("icegatheringstatechange", check);
-        done();
-      }
+    const hardTimeout = setTimeout(done, 2000); // hard cap
+
+    pc.addEventListener("icegatheringstatechange", () => {
+      if (pc.iceGatheringState === "complete") done();
     });
+
     pc.addEventListener("icecandidate", (ev) => {
       if (!ev.candidate) { done(); return; }
-      // First host candidate means the LAN path is ready; wait 400ms for more
-      if (!earlyTimer && ev.candidate.type === "host") {
-        earlyTimer = setTimeout(done, 400);
+      // Start a tight timer as soon as we have at least one candidate
+      if (!earlyTimer) {
+        earlyTimer = setTimeout(done, 300);
       }
     });
   });
@@ -179,14 +178,14 @@ export default function CameraCapturePage({
     setErrorMsg("");
 
     try {
-      // Poll for PC's offer — 500ms intervals for fast pickup
+      // Poll for PC's offer — 200ms intervals for fast pickup
       let offer: RTCSessionDescriptionInit | null = null;
       let offerVersion = 0;
       while (!offer && !cancelledRef.current) {
         try {
           const r = await fetch(`/api/webrtc-session/${sessionId}/offer`);
           if (!r.ok) {
-            await new Promise((res) => setTimeout(res, 500));
+            await new Promise((res) => setTimeout(res, 200));
             continue;
           }
           const d = await r.json() as { offer: RTCSessionDescriptionInit | null; offerVersion?: number };
@@ -194,9 +193,9 @@ export default function CameraCapturePage({
             offer = d.offer;
             offerVersion = d.offerVersion ?? 0;
           } else {
-            await new Promise((res) => setTimeout(res, 500));
+            await new Promise((res) => setTimeout(res, 200));
           }
-        } catch { await new Promise((res) => setTimeout(res, 500)); }
+        } catch { await new Promise((res) => setTimeout(res, 200)); }
       }
       if (cancelledRef.current || !offer) { connectingRef.current = false; return; }
 

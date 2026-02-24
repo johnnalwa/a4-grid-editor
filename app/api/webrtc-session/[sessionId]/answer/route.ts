@@ -15,10 +15,10 @@ export async function GET(
   { params }: { params: Promise<{ sessionId: string }> }
 ) {
   const { sessionId } = await params;
-  if (!sessionExists(sessionId)) {
+  if (!(await sessionExists(sessionId))) {
     return NextResponse.json({ error: "not_found" }, { status: 404, headers: CORS });
   }
-  return NextResponse.json({ answer: getAnswer(sessionId) }, { headers: CORS });
+  return NextResponse.json({ answer: await getAnswer(sessionId) }, { headers: CORS });
 }
 
 /** Phone posts its completed answer (with gathered ICE candidates) */
@@ -27,11 +27,11 @@ export async function POST(
   { params }: { params: Promise<{ sessionId: string }> }
 ) {
   const { sessionId } = await params;
-  if (!sessionExists(sessionId)) {
+  if (!(await sessionExists(sessionId))) {
     return NextResponse.json({ error: "not_found" }, { status: 404, headers: CORS });
   }
   const { answer } = (await request.json()) as { answer: RTCSessionDescriptionInit };
-  setAnswer(sessionId, answer);
+  await setAnswer(sessionId, answer);
   return NextResponse.json({ ok: true }, { headers: CORS });
 }
 
