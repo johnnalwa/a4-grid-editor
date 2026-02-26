@@ -9,10 +9,13 @@ import type {
 } from "@/lib/document-types";
 import {
   createPage,
+  createNotesPage,
   createTextElement,
   createNoteElement,
   createImageElement,
   createShapeElement,
+  A4_WIDTH_PX,
+  A4_HEIGHT_PX,
 } from "@/lib/document-types";
 
 const initialPages: DocumentPage[] = [
@@ -97,6 +100,28 @@ export function useDocumentStore() {
         selectedElementId: null,
       };
     });
+  }, []);
+
+  const addNotesPage = useCallback(() => {
+    setState((prev) => {
+      pushHistory(prev);
+      const newPage = createNotesPage();
+      return {
+        ...prev,
+        pages: [...prev.pages, newPage],
+        selectedPageId: newPage.id,
+        selectedElementId: null,
+      };
+    });
+  }, []);
+
+  const updatePageLabel = useCallback((pageId: string, label: string) => {
+    setState((prev) => ({
+      ...prev,
+      pages: prev.pages.map((p) =>
+        p.id === pageId ? { ...p, pageLabel: label } : p
+      ),
+    }));
   }, []);
 
   const deletePage = useCallback((pageId: string) => {
@@ -364,6 +389,8 @@ export function useDocumentStore() {
     selectPage,
     selectElement,
     addPage,
+    addNotesPage,
+    updatePageLabel,
     deletePage,
     duplicatePage,
     reorderPages,
@@ -382,6 +409,41 @@ export function useDocumentStore() {
     sendToBack,
     getSelectedPage,
     getSelectedElement,
+    fitImagesToFill: (pageIds: string[], gapPx = 6) => {
+      setState((prev) => {
+        pushHistory(prev);
+        const newPages = prev.pages.map((page) => {
+          if (!pageIds.includes(page.id)) return page;
+          const images = page.elements
+            .filter((el) => el.type === "image")
+            .sort((a, b) => a.zIndex - b.zIndex);
+          if (images.length === 0) return page;
+          const n = images.length;
+          const cols = Math.ceil(Math.sqrt(n));
+          const rows = Math.ceil(n / cols);
+          const totalGapX = (cols - 1) * gapPx;
+          const totalGapY = (rows - 1) * gapPx;
+          const cellW = Math.floor((A4_WIDTH_PX - totalGapX) / cols);
+          const cellH = Math.floor((A4_HEIGHT_PX - totalGapY) / rows);
+          const updatedImages = images.map((el, idx) => ({
+            ...el,
+            position: {
+              x: (idx % cols) * (cellW + gapPx),
+              y: Math.floor(idx / cols) * (cellH + gapPx),
+            },
+            size: { width: cellW, height: cellH },
+          }));
+          return {
+            ...page,
+            elements: [
+              ...page.elements.filter((el) => el.type !== "image"),
+              ...updatedImages,
+            ],
+          };
+        });
+        return { ...prev, pages: newPages };
+      });
+    },
     rearrangePages: (
       imagesPerPage: number,
       twoPageLayout: "horizontal" | "vertical" = "vertical"

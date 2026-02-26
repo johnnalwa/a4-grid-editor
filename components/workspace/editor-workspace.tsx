@@ -397,6 +397,23 @@ export function EditorWorkspace() {
     }
   }, [store]);
 
+  const handleFitCurrentPage = useCallback(() => {
+    if (store.state.selectedPageId) {
+      store.fitImagesToFill([store.state.selectedPageId]);
+    }
+  }, [store]);
+
+  const handleFitAllPages = useCallback(() => {
+    store.fitImagesToFill(store.state.pages.map((p) => p.id));
+  }, [store]);
+
+  const handleUpdatePageLabel = useCallback(
+    (pageId: string, label: string) => {
+      store.updatePageLabel(pageId, label);
+    },
+    [store]
+  );
+
   const handleAddShape = useCallback(() => {
     if (store.state.selectedPageId) {
       store.addShapeToPage(store.state.selectedPageId);
@@ -619,6 +636,7 @@ export function EditorWorkspace() {
           onZoomOut={handleZoomOut}
           pageCount={store.state.pages.length}
           onAddPage={store.addPage}
+          onAddNotesPage={store.addNotesPage}
           darkMode={darkMode}
           onToggleDarkMode={() => setDarkMode((prev) => !prev)}
           documentName={store.state.name}
@@ -635,6 +653,8 @@ export function EditorWorkspace() {
           onSetTwoPageLayout={setTwoPageLayout}
           canUndo={store.canUndo}
           onUndo={store.undo}
+          onFitCurrentPage={handleFitCurrentPage}
+          onFitAllPages={handleFitAllPages}
         />
 
         <div className="flex flex-1 overflow-hidden relative">
@@ -678,6 +698,8 @@ export function EditorWorkspace() {
                   if (isMobile) setMobilePageListOpen(false);
                 }}
                 onAddPage={store.addPage}
+                onAddNotesPage={store.addNotesPage}
+                onReorderPage={store.reorderPages}
               />
             </div>
           )}
@@ -746,6 +768,7 @@ export function EditorWorkspace() {
                     pageCount={store.state.pages.length}
                     isMobile={isMobile}
                     onMoveStart={store.recordSnapshot}
+                    onUpdatePageLabel={(label) => handleUpdatePageLabel(page.id, label)}
                   />
                 ))}
               </div>

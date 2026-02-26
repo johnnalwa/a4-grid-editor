@@ -53,6 +53,7 @@ interface PageCanvasProps {
   hasClipboard: boolean;
   pageCount: number;
   isMobile?: boolean;
+  onUpdatePageLabel?: (label: string) => void;
   /** Called when a drag or resize starts — used to record undo snapshot */
   onMoveStart?: () => void;
 }
@@ -84,6 +85,7 @@ export function PageCanvas({
   hasClipboard,
   pageCount,
   isMobile = false,
+  onUpdatePageLabel,
   onMoveStart,
 }: PageCanvasProps) {
   const [guides, setGuides] = React.useState<{ x: number[]; y: number[] }>({
@@ -242,13 +244,22 @@ export function PageCanvas({
       {/* Page label */}
       <div
         className={cn(
-          "text-[10px] font-bold uppercase tracking-widest transition-colors",
+          "text-[10px] font-bold uppercase tracking-widest transition-colors flex items-center gap-1.5",
           isActivePage ? "text-primary" : "text-muted-foreground"
         )}
       >
-        Page {pageIndex + 1}
+        {page.pageType === "notes" ? (
+          <span className="inline-flex items-center gap-1">
+            <span className="bg-amber-400/80 text-amber-900 text-[8px] font-black px-1 py-0.5 rounded uppercase tracking-wider">
+              Notes
+            </span>
+            Page {pageIndex + 1}
+          </span>
+        ) : (
+          <span>Page {pageIndex + 1}</span>
+        )}
         {page.elements.length > 0 && (
-          <span className="text-muted-foreground font-normal ml-2">
+          <span className="text-muted-foreground font-normal">
             ({page.elements.length} element{page.elements.length !== 1 ? "s" : ""})
           </span>
         )}
@@ -283,8 +294,57 @@ export function PageCanvas({
               data-canvas="true"
               data-page-id={page.id}
             >
-              {/* Grid overlay for active page */}
-              {isActivePage && (
+              {/* ── NOTES PAGE: full-page notepad ── */}
+              {page.pageType === "notes" && (
+                <>
+                  {/* Classic notebook horizontal lines — blue on white */}
+                  <div
+                    className="absolute inset-0 pointer-events-none"
+                    style={{
+                      backgroundImage:
+                        "repeating-linear-gradient(transparent, transparent 31px, #9ec5e8 31px, #9ec5e8 32px)",
+                      backgroundSize: "100% 32px",
+                      backgroundPosition: "0 0",
+                      opacity: 0.55,
+                    }}
+                    data-canvas="true"
+                  />
+
+                  {/* Red left margin line */}
+                  <div
+                    className="absolute top-0 bottom-0 pointer-events-none"
+                    style={{
+                      left: 54,
+                      width: 2,
+                      backgroundColor: "rgba(210, 50, 50, 0.55)",
+                    }}
+                    data-canvas="true"
+                  />
+
+                  {/* Full-page writing textarea */}
+                  <textarea
+                    value={page.pageLabel || ""}
+                    onChange={(e) => onUpdatePageLabel?.(e.target.value)}
+                    placeholder="Start writing your notes…"
+                    spellCheck
+                    className="absolute inset-0 w-full h-full bg-transparent resize-none outline-none placeholder:text-slate-300"
+                    style={{
+                      padding: "8px 20px 20px 66px",
+                      fontSize: "14px",
+                      lineHeight: "32px",
+                      fontFamily: "inherit",
+                      color: "#1e293b",
+                      zIndex: 1,
+                    }}
+                    onPointerDown={(e) => e.stopPropagation()}
+                    onClick={(e) => e.stopPropagation()}
+                    onContextMenu={(e) => e.stopPropagation()}
+                  />
+                </>
+              )}
+
+              {/* Grid overlay for active regular page (skip for notes — lines already there) */}
+              {isActivePage && page.pageType !== "notes" && (
                 <div
                   className="absolute inset-0 pointer-events-none opacity-[0.03]"
                   style={{
@@ -296,8 +356,8 @@ export function PageCanvas({
                 />
               )}
 
-              {/* Page margin guides for active page */}
-              {isActivePage && (
+              {/* Page margin guides for active regular page */}
+              {isActivePage && page.pageType !== "notes" && (
                 <div
                   className="absolute pointer-events-none border border-dashed border-primary/10"
                   style={{ left: 40, top: 40, right: 40, bottom: 40 }}
@@ -347,19 +407,15 @@ export function PageCanvas({
                 />
               ))}
 
-              {/* Empty state */}
-              {page.elements.length === 0 && (
+              {/* Empty state (regular pages only — notes page shows textarea placeholder) */}
+              {page.elements.length === 0 && page.pageType !== "notes" && (
                 <div
                   className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none"
                   data-canvas="true"
                 >
                   <div className="text-center space-y-2 opacity-30">
-                    <p className="text-sm font-medium text-foreground">
-                      Drop assets here
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      Or right-click to add elements
-                    </p>
+                    <p className="text-sm font-medium text-foreground">Drop assets here</p>
+                    <p className="text-xs text-muted-foreground">Or right-click to add elements</p>
                   </div>
                 </div>
               )}

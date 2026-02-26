@@ -10,11 +10,19 @@ import {
   TooltipProvider,
 } from "@/components/ui/tooltip";
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
   FileText,
   Minus,
   Plus,
   PlusCircle,
-  Download,
+  Share2,
   Moon,
   Sun,
   PanelLeftClose,
@@ -24,6 +32,9 @@ import {
   Trash2,
   Copy,
   Undo2,
+  Maximize2,
+  NotebookPen,
+  ChevronDown,
 } from "lucide-react";
 
 interface WorkspaceHeaderProps {
@@ -32,6 +43,7 @@ interface WorkspaceHeaderProps {
   onZoomOut: () => void;
   pageCount: number;
   onAddPage: () => void;
+  onAddNotesPage?: () => void;
   darkMode: boolean;
   onToggleDarkMode: () => void;
   documentName: string;
@@ -48,6 +60,8 @@ interface WorkspaceHeaderProps {
   onSetTwoPageLayout: (val: "horizontal" | "vertical") => void;
   canUndo: boolean;
   onUndo: () => void;
+  onFitCurrentPage?: () => void;
+  onFitAllPages?: () => void;
 }
 
 export function WorkspaceHeader({
@@ -56,6 +70,7 @@ export function WorkspaceHeader({
   onZoomOut,
   pageCount,
   onAddPage,
+  onAddNotesPage,
   darkMode,
   onToggleDarkMode,
   documentName,
@@ -72,6 +87,8 @@ export function WorkspaceHeader({
   onSetTwoPageLayout,
   canUndo,
   onUndo,
+  onFitCurrentPage,
+  onFitAllPages,
 }: WorkspaceHeaderProps) {
   const [isEditingName, setIsEditingName] = useState(false);
   const [nameValue, setNameValue] = useState(documentName);
@@ -102,9 +119,7 @@ export function WorkspaceHeader({
                 <span className="sr-only">Toggle asset panel</span>
               </Button>
             </TooltipTrigger>
-            <TooltipContent>
-              {assetPanelOpen ? "Hide Panel" : "Show Panel"}
-            </TooltipContent>
+            <TooltipContent>{assetPanelOpen ? "Hide Panel" : "Show Panel"}</TooltipContent>
           </Tooltip>
 
           <div className="h-5 w-px bg-border hidden sm:block" />
@@ -126,12 +141,7 @@ export function WorkspaceHeader({
                   }}
                   className="h-7 text-xs w-full max-w-[120px] sm:max-w-[200px]"
                 />
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-7 w-7"
-                  onClick={handleSaveName}
-                >
+                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={handleSaveName}>
                   <Check className="w-3.5 h-3.5" />
                 </Button>
               </div>
@@ -139,10 +149,7 @@ export function WorkspaceHeader({
               <button
                 type="button"
                 className="flex items-center gap-1.5 hover:bg-muted rounded px-2 py-1 transition-colors min-w-0"
-                onClick={() => {
-                  setNameValue(documentName);
-                  setIsEditingName(true);
-                }}
+                onClick={() => { setNameValue(documentName); setIsEditingName(true); }}
               >
                 <span className="font-medium text-xs text-foreground truncate max-w-[100px] sm:max-w-[200px]">
                   {documentName}
@@ -153,7 +160,7 @@ export function WorkspaceHeader({
           </div>
 
           <div className="h-5 w-px bg-border hidden md:block" />
- 
+
           {/* Images per page */}
           <div className="hidden lg:flex items-center gap-2">
             <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground whitespace-nowrap">
@@ -165,9 +172,7 @@ export function WorkspaceHeader({
               className="h-7 bg-muted border-none text-[11px] font-medium rounded px-1.5 focus:ring-1 focus:ring-primary outline-none cursor-pointer"
             >
               {[1, 2, 4, 6, 8, 9, 12, 16].map((num) => (
-                <option key={num} value={num}>
-                  {num}
-                </option>
+                <option key={num} value={num}>{num}</option>
               ))}
             </select>
             {imagesPerPage === 2 && (
@@ -205,7 +210,7 @@ export function WorkspaceHeader({
               </div>
             )}
           </div>
- 
+
           <div className="h-5 w-px bg-border hidden lg:block" />
 
           {/* Zoom controls */}
@@ -251,6 +256,53 @@ export function WorkspaceHeader({
         </div>
 
         <div className="flex items-center gap-1.5">
+          {/* Fit to Fill dropdown */}
+          {(onFitCurrentPage || onFitAllPages) && (
+            <DropdownMenu>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-8 gap-1 text-muted-foreground hover:text-foreground hidden sm:flex px-2"
+                    >
+                      <Maximize2 className="w-3.5 h-3.5" />
+                      <span className="text-[10px] font-medium hidden lg:inline">Fill</span>
+                      <ChevronDown className="w-3 h-3" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                </TooltipTrigger>
+                <TooltipContent>Fit images to fill page — no margins</TooltipContent>
+              </Tooltip>
+              <DropdownMenuContent align="end" className="w-48">
+                <DropdownMenuLabel className="text-[10px] uppercase tracking-wider text-muted-foreground font-bold">
+                  Fill Page (no margin)
+                </DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                {onFitCurrentPage && (
+                  <DropdownMenuItem
+                    className="text-xs gap-2"
+                    onClick={onFitCurrentPage}
+                    disabled={!selectedPageId}
+                  >
+                    <Maximize2 className="w-3.5 h-3.5" />
+                    Fill Current Page
+                  </DropdownMenuItem>
+                )}
+                {onFitAllPages && (
+                  <DropdownMenuItem
+                    className="text-xs gap-2"
+                    onClick={onFitAllPages}
+                  >
+                    <Maximize2 className="w-3.5 h-3.5 text-primary" />
+                    Fill All Pages
+                  </DropdownMenuItem>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
+
           {/* Page actions */}
           {selectedPageId && (
             <div className="hidden sm:flex items-center gap-0.5">
@@ -311,36 +363,54 @@ export function WorkspaceHeader({
                 className="h-8 w-8 text-muted-foreground hover:text-foreground"
                 onClick={onToggleDarkMode}
               >
-                {darkMode ? (
-                  <Sun className="w-4 h-4" />
-                ) : (
-                  <Moon className="w-4 h-4" />
-                )}
+                {darkMode ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
                 <span className="sr-only">Toggle dark mode</span>
               </Button>
             </TooltipTrigger>
-            <TooltipContent>
-              {darkMode ? "Light Mode" : "Dark Mode"}
-            </TooltipContent>
+            <TooltipContent>{darkMode ? "Light Mode" : "Dark Mode"}</TooltipContent>
           </Tooltip>
 
-          <Button
-            variant="outline"
-            size="sm"
-            className="text-xs gap-1.5 h-8 bg-transparent"
-            onClick={onAddPage}
-          >
-            <PlusCircle className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Add Page</span>
-          </Button>
+          {/* Add page dropdown */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="outline"
+                size="sm"
+                className="text-xs gap-1.5 h-8 bg-transparent"
+              >
+                <PlusCircle className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Add Page</span>
+                <ChevronDown className="w-3 h-3" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-44">
+              <DropdownMenuItem className="text-xs gap-2" onClick={onAddPage}>
+                <PlusCircle className="w-3.5 h-3.5" />
+                Regular Page
+              </DropdownMenuItem>
+              {onAddNotesPage && (
+                <DropdownMenuItem
+                  className="text-xs gap-2"
+                  onClick={onAddNotesPage}
+                >
+                  <NotebookPen className="w-3.5 h-3.5 text-amber-500" />
+                  <span>Notes Page</span>
+                  <span className="ml-auto text-[9px] bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400 px-1 rounded font-bold">
+                    NEW
+                  </span>
+                </DropdownMenuItem>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
 
+          {/* Share & Export button */}
           <Button
             size="sm"
             className="text-xs gap-1.5 shadow-sm h-8"
             onClick={onExport}
           >
-            <Download className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Export PDF</span>
+            <Share2 className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">Share & Export</span>
           </Button>
         </div>
       </header>

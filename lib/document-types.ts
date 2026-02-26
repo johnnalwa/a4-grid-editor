@@ -45,6 +45,8 @@ export interface DocumentPage {
   id: string;
   elements: PageElement[];
   backgroundColor: string;
+  pageType?: "regular" | "notes";
+  pageLabel?: string;
 }
 
 export interface DocumentState {
@@ -68,6 +70,17 @@ export function createPage(id?: string): DocumentPage {
     id: id || `page-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
     elements: [],
     backgroundColor: "#ffffff",
+    pageType: "regular",
+  };
+}
+
+export function createNotesPage(id?: string): DocumentPage {
+  return {
+    id: id || `page-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+    elements: [],
+    backgroundColor: "#ffffff",
+    pageType: "notes",
+    pageLabel: "",
   };
 }
 
