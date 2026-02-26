@@ -264,22 +264,18 @@ export function WorkspaceHeader({
           {/* Fit to Fill dropdown */}
           {(onFitCurrentPage || onFitAllPages) && (
             <DropdownMenu>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <DropdownMenuTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-8 gap-1 text-muted-foreground hover:text-foreground hidden sm:flex px-2"
-                    >
-                      <Maximize2 className="w-3.5 h-3.5" />
-                      <span className="text-[10px] font-medium hidden lg:inline">Fill</span>
-                      <ChevronDown className="w-3 h-3" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                </TooltipTrigger>
-                <TooltipContent>Fit images to fill page — no margins</TooltipContent>
-              </Tooltip>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  title="Fit images to fill page — no margins"
+                  className="h-8 gap-1 text-muted-foreground hover:text-foreground hidden sm:flex px-2"
+                >
+                  <Maximize2 className="w-3.5 h-3.5" />
+                  <span className="text-[10px] font-medium hidden lg:inline">Fill</span>
+                  <ChevronDown className="w-3 h-3" />
+                </Button>
+              </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-48">
                 <DropdownMenuLabel className="text-[10px] uppercase tracking-wider text-muted-foreground font-bold">
                   Fill Page (no margin)
