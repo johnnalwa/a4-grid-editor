@@ -10,9 +10,13 @@ const _inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "A4 Canvas Workspace",
+  title: "Canvas Workspace",
   description:
     "A production-level document management workspace with A4 grid editing, asset management, and multi-page canvas support.",
+  icons: {
+    icon: "/icon.png",
+    apple: "/icon.png",
+  },
 };
 
 export const viewport: Viewport = {

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -18,7 +19,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
-  FileText,
   Minus,
   Plus,
   PlusCircle,
@@ -126,9 +126,14 @@ export function WorkspaceHeader({
 
           {/* Document name */}
           <div className="flex items-center gap-1.5 min-w-0 flex-1">
-            <div className="w-7 h-7 bg-primary rounded-md flex items-center justify-center text-primary-foreground shrink-0 hidden sm:flex">
-              <FileText className="w-3.5 h-3.5" />
-            </div>
+            <Image
+              src="/icon.png"
+              alt="Canvas Workspace"
+              width={28}
+              height={28}
+              className="rounded-md shrink-0 hidden sm:block"
+              priority
+            />
             {isEditingName ? (
               <div className="flex items-center gap-1 flex-1 min-w-0">
                 <Input
