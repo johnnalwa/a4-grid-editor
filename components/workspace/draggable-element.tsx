@@ -23,6 +23,8 @@ import {
   ClipboardCopy,
   GripVertical,
   Crop,
+  RotateCcw,
+  RotateCw,
 } from "lucide-react";
 
 interface DraggableElementProps {
@@ -425,6 +427,8 @@ export function DraggableElement({
             height: element.size.height,
             zIndex: element.zIndex,
             opacity: element.opacity,
+            transform: element.rotation ? `rotate(${element.rotation}deg)` : undefined,
+            transformOrigin: "center center",
           }}
           onPointerDown={(e) => {
             if (!isEditing) {
@@ -535,6 +539,22 @@ export function DraggableElement({
                 <button
                   type="button"
                   className="p-0.5 bg-surface rounded shadow-sm border border-border hover:bg-muted transition-colors"
+                  onClick={(e) => { e.stopPropagation(); onUpdate({ rotation: ((element.rotation ?? 0) - 90 + 360) % 360 }); }}
+                  title="Rotate 90° left"
+                >
+                  <RotateCcw className="w-3 h-3 text-muted-foreground" />
+                </button>
+                <button
+                  type="button"
+                  className="p-0.5 bg-surface rounded shadow-sm border border-border hover:bg-muted transition-colors"
+                  onClick={(e) => { e.stopPropagation(); onUpdate({ rotation: ((element.rotation ?? 0) + 90) % 360 }); }}
+                  title="Rotate 90° right"
+                >
+                  <RotateCw className="w-3 h-3 text-muted-foreground" />
+                </button>
+                <button
+                  type="button"
+                  className="p-0.5 bg-surface rounded shadow-sm border border-border hover:bg-muted transition-colors"
                   onClick={(e) => {
                     e.stopPropagation();
                     onUpdate({ locked: !element.locked });
@@ -634,6 +654,34 @@ export function DraggableElement({
           Copy
           <ContextMenuShortcut>Ctrl+C</ContextMenuShortcut>
         </ContextMenuItem>
+
+        <ContextMenuSeparator />
+
+        <ContextMenuItem
+          className="gap-2 text-xs"
+          onClick={() => onUpdate({ rotation: ((element.rotation ?? 0) - 90 + 360) % 360 })}
+        >
+          <RotateCcw className="w-3.5 h-3.5" />
+          Rotate 90° Left
+        </ContextMenuItem>
+
+        <ContextMenuItem
+          className="gap-2 text-xs"
+          onClick={() => onUpdate({ rotation: ((element.rotation ?? 0) + 90) % 360 })}
+        >
+          <RotateCw className="w-3.5 h-3.5" />
+          Rotate 90° Right
+        </ContextMenuItem>
+
+        {(element.rotation ?? 0) !== 0 && (
+          <ContextMenuItem
+            className="gap-2 text-xs"
+            onClick={() => onUpdate({ rotation: 0 })}
+          >
+            <RotateCcw className="w-3.5 h-3.5" />
+            Reset Rotation
+          </ContextMenuItem>
+        )}
 
         <ContextMenuSeparator />
 

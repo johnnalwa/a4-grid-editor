@@ -126,7 +126,7 @@ export default function CameraCapturePage({
     streamRef.current?.getTracks().forEach((t) => t.stop());
 
     const attempts: MediaStreamConstraints[] = [
-      { video: { facingMode: { ideal: mode }, width: { ideal: 1920 }, height: { ideal: 2560 }, aspectRatio: { ideal: 3 / 4 } }, audio: false },
+      { video: { facingMode: { ideal: mode }, width: { ideal: 1920 }, height: { ideal: 2714 }, aspectRatio: { ideal: 210 / 297 } }, audio: false },
       { video: { facingMode: { ideal: mode } }, audio: false },
       { video: true, audio: false },
     ];
@@ -343,13 +343,37 @@ export default function CameraCapturePage({
 
     const video = videoRef.current;
     const canvas = canvasRef.current;
-    canvas.width = video.videoWidth || 1280;
-    canvas.height = video.videoHeight || 960;
+
+    const videoW = video.videoWidth || 1280;
+    const videoH = video.videoHeight || 960;
+
+    // Compute objectFit:cover crop to match exactly what's shown in the A4 frame.
+    // A4 ratio = 210/297 ≈ 0.7071 (portrait)
+    const A4_RATIO = 210 / 297;
+    const videoRatio = videoW / videoH;
+
+    let sx = 0, sy = 0, sw = videoW, sh = videoH;
+    if (videoRatio > A4_RATIO) {
+      // Video is wider than A4 — crop left and right
+      sw = videoH * A4_RATIO;
+      sx = (videoW - sw) / 2;
+    } else {
+      // Video is taller than A4 — crop top and bottom
+      sh = videoW / A4_RATIO;
+      sy = (videoH - sh) / 2;
+    }
+
+    // Output at A4 proportions, capped at a practical max height
+    const outH = Math.round(Math.min(sh, 2970)); // ≤ A4 @ 254dpi
+    const outW = Math.round(outH * A4_RATIO);
+    canvas.width = outW;
+    canvas.height = outH;
+
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
     if (facingMode === "user") { ctx.translate(canvas.width, 0); ctx.scale(-1, 1); }
-    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    ctx.drawImage(video, sx, sy, sw, sh, 0, 0, canvas.width, canvas.height);
 
     // Preview thumbnail
     const thumb = canvas.toDataURL("image/jpeg", 0.4);
@@ -437,8 +461,8 @@ export default function CameraCapturePage({
         )}
       </div>
 
-      {/* Portrait video — 3:4 */}
-      <div style={{ flex: 1, position: "relative", background: "#111", aspectRatio: "3/4", maxHeight: "70dvh", overflow: "hidden", flexShrink: 0 }}>
+      {/* Portrait video — A4 (210:297) */}
+      <div style={{ width: "100%", position: "relative", background: "#111", aspectRatio: "210/297", maxHeight: "70dvh", overflow: "hidden", flexShrink: 0 }}>
 
         {!cameraError ? (
           <video
