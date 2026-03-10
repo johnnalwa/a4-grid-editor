@@ -83,24 +83,13 @@ export function ExportDialog({
       preloadAllImages(pagesToExport),
     ]);
 
-    if (mergeAll) {
-      const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
-      for (let i = 0; i < pagesToExport.length; i++) {
-        if (i > 0) pdf.addPage("a4", "portrait");
-        const canvas = renderPageToCanvas(pagesToExport[i], imageCache);
-        pdf.addImage(canvas.toDataURL("image/jpeg", 0.92), "JPEG", 0, 0, A4_WIDTH_MM, A4_HEIGHT_MM);
-      }
-      return pdf.output("blob") as Blob;
-    } else {
-      // Return first page as blob for sharing; full multi-file only in Save PDF
-      const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
-      for (let i = 0; i < pagesToExport.length; i++) {
-        if (i > 0) pdf.addPage("a4", "portrait");
-        const canvas = renderPageToCanvas(pagesToExport[i], imageCache);
-        pdf.addImage(canvas.toDataURL("image/jpeg", 0.92), "JPEG", 0, 0, A4_WIDTH_MM, A4_HEIGHT_MM);
-      }
-      return pdf.output("blob") as Blob;
+    const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+    for (let i = 0; i < pagesToExport.length; i++) {
+      if (i > 0) pdf.addPage("a4", "portrait");
+      const canvas = renderPageToCanvas(pagesToExport[i], imageCache);
+      pdf.addImage(canvas.toDataURL("image/png"), "PNG", 0, 0, A4_WIDTH_MM, A4_HEIGHT_MM);
     }
+    return pdf.output("blob") as Blob;
   }, [pages, selectedPages, mergeAll]);
 
   // ── Save PDF ────────────────────────────────────────────────────────────────
@@ -123,14 +112,14 @@ export function ExportDialog({
         for (let i = 0; i < pagesToExport.length; i++) {
           if (i > 0) pdf.addPage("a4", "portrait");
           const canvas = renderPageToCanvas(pagesToExport[i], imageCache);
-          pdf.addImage(canvas.toDataURL("image/jpeg", 0.92), "JPEG", 0, 0, A4_WIDTH_MM, A4_HEIGHT_MM);
+          pdf.addImage(canvas.toDataURL("image/png"), "PNG", 0, 0, A4_WIDTH_MM, A4_HEIGHT_MM);
         }
         pdf.save(`${fileName || "document"}.pdf`);
       } else {
         for (let i = 0; i < pagesToExport.length; i++) {
           const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
           const canvas = renderPageToCanvas(pagesToExport[i], imageCache);
-          pdf.addImage(canvas.toDataURL("image/jpeg", 0.92), "JPEG", 0, 0, A4_WIDTH_MM, A4_HEIGHT_MM);
+          pdf.addImage(canvas.toDataURL("image/png"), "PNG", 0, 0, A4_WIDTH_MM, A4_HEIGHT_MM);
           pdf.save(`${fileName || "document"}_page${i + 1}.pdf`);
         }
       }
@@ -551,16 +540,24 @@ function renderPageToCanvas(
     ctx.lineTo(54, A4_HEIGHT_PX);
     ctx.stroke();
 
-    // Notes content text
+    // Notes content text — wrap long lines and track y position
     if (page.pageLabel) {
       ctx.fillStyle = "#1e293b";
       ctx.font = "14px Inter, system-ui, sans-serif";
       ctx.textAlign = "left";
       ctx.direction = "ltr";
-      const contentLines = page.pageLabel.split("\n");
-      contentLines.forEach((line, i) => {
-        ctx.fillText(line, 66, 8 + 14 + i * 32);
-      });
+      const maxTextWidth = A4_WIDTH_PX - 66 - 20; // right margin 20px
+      const rawLines = page.pageLabel.split("\n");
+      let currentY = 30; // baseline of first line (sits just above the 32px rule line)
+      for (const rawLine of rawLines) {
+        const wrappedLines = rawLine === "" ? [""] : wrapText(ctx, rawLine, maxTextWidth);
+        for (const wLine of wrappedLines) {
+          if (currentY > A4_HEIGHT_PX + 16) break;
+          ctx.fillText(wLine, 66, currentY);
+          currentY += 32;
+        }
+        if (currentY > A4_HEIGHT_PX + 16) break;
+      }
     }
   }
 
