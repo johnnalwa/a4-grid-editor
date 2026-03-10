@@ -1,5 +1,5 @@
-import { EditorWorkspace } from "@/components/workspace/editor-workspace";
+import { EditorWorkspaceClient } from "@/components/workspace/editor-workspace-client";
 
 export default function Page() {
-  return <EditorWorkspace />;
+  return <EditorWorkspaceClient />;
 }

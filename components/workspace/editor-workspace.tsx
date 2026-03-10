@@ -404,7 +404,9 @@ export function EditorWorkspace() {
   }, [store]);
 
   const handleFitAllPages = useCallback(() => {
-    store.fitImagesToFill(store.state.pages.map((p) => p.id));
+    store.fitImagesToFill(
+      store.state.pages.filter((p) => p.pageType !== "notes").map((p) => p.id)
+    );
   }, [store]);
 
   const handleUpdatePageLabel = useCallback(

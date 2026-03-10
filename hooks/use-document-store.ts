@@ -449,8 +449,12 @@ export function useDocumentStore() {
       twoPageLayout: "horizontal" | "vertical" = "vertical"
     ) => {
       setState((prev) => {
+        // Notes pages are never touched — only redistribute images across regular pages
+        const notesPages = prev.pages.filter((p) => p.pageType === "notes");
+        const regularPages = prev.pages.filter((p) => p.pageType !== "notes");
+
         const allImages: PageElement[] = [];
-        prev.pages.forEach((page) => {
+        regularPages.forEach((page) => {
           const images = page.elements
             .filter((el) => el.type === "image")
             .sort((a, b) => a.position.y - b.position.y || a.position.x - b.position.x);
@@ -487,17 +491,17 @@ export function useDocumentStore() {
         const cellW = availableWidth / gridCols;
         const cellH = availableHeight / gridRows;
 
-        const newPages: DocumentPage[] = [];
+        const newRegularPages: DocumentPage[] = [];
 
         allImages.forEach((el, index) => {
           const pageIndex = Math.floor(index / imagesPerPage);
           const indexInPage = index % imagesPerPage;
 
-          if (!newPages[pageIndex]) {
-            newPages[pageIndex] = createPage();
-            const originalPage = prev.pages[pageIndex];
+          if (!newRegularPages[pageIndex]) {
+            newRegularPages[pageIndex] = createPage();
+            const originalPage = regularPages[pageIndex];
             if (originalPage) {
-              newPages[pageIndex].backgroundColor = originalPage.backgroundColor;
+              newRegularPages[pageIndex].backgroundColor = originalPage.backgroundColor;
             }
           }
 
@@ -522,15 +526,18 @@ export function useDocumentStore() {
             zIndex: indexInPage + 1,
           };
 
-          newPages[pageIndex].elements.push(updatedElement);
+          newRegularPages[pageIndex].elements.push(updatedElement);
         });
+
+        // Regular pages first, notes pages preserved at the end
+        const finalPages = [...newRegularPages, ...notesPages];
 
         return {
           ...prev,
-          pages: newPages,
+          pages: finalPages,
           selectedPageId:
-            newPages.find((p) => p.id === prev.selectedPageId)?.id ||
-            newPages[0].id,
+            finalPages.find((p) => p.id === prev.selectedPageId)?.id ||
+            finalPages[0].id,
         };
       });
     },
