@@ -2,6 +2,7 @@
 
 import { useState, useCallback } from "react";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { NotesTypeDialog } from "./notes-type-dialog";
 import {
   ContextMenu,
   ContextMenuContent,
@@ -28,6 +29,7 @@ interface PageListProps {
   onSelectPage: (pageId: string) => void;
   onAddPage: () => void;
   onAddNotesPage?: () => void;
+  onAddNotesPageTemplate?: () => void;
   onReorderPage?: (fromIndex: number, toIndex: number) => void;
 }
 
@@ -37,10 +39,12 @@ export function PageList({
   onSelectPage,
   onAddPage,
   onAddNotesPage,
+  onAddNotesPageTemplate,
   onReorderPage,
 }: PageListProps) {
   const [dragIndex, setDragIndex] = useState<number | null>(null);
   const [dropTarget, setDropTarget] = useState<number | null>(null);
+  const [notesDialogOpen, setNotesDialogOpen] = useState(false);
 
   // ── Drag-and-drop ──────────────────────────────────────────────────────────
   const handleDragStart = useCallback((e: React.DragEvent, index: number) => {
@@ -303,7 +307,7 @@ export function PageList({
             <div className="pt-1">
               <button
                 type="button"
-                onClick={onAddNotesPage}
+                onClick={() => setNotesDialogOpen(true)}
                 title="Add notes page"
                 className="w-full aspect-[210/297] rounded-sm border-2 border-dashed border-amber-300 hover:border-amber-500 flex flex-col items-center justify-center gap-0.5 transition-colors"
                 style={{ backgroundColor: "rgba(255,252,220,0.4)" }}
@@ -317,6 +321,15 @@ export function PageList({
           )}
         </div>
       </ScrollArea>
+
+      {onAddNotesPage && (
+        <NotesTypeDialog
+          open={notesDialogOpen}
+          onOpenChange={setNotesDialogOpen}
+          onSelectBlank={onAddNotesPage}
+          onSelectTemplate={onAddNotesPageTemplate ?? onAddNotesPage}
+        />
+      )}
     </div>
   );
 }

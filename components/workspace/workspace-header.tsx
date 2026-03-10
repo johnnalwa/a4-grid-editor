@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { NotesTypeDialog } from "./notes-type-dialog";
 import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -44,6 +45,7 @@ interface WorkspaceHeaderProps {
   pageCount: number;
   onAddPage: () => void;
   onAddNotesPage?: () => void;
+  onAddNotesPageTemplate?: () => void;
   darkMode: boolean;
   onToggleDarkMode: () => void;
   documentName: string;
@@ -89,9 +91,11 @@ export function WorkspaceHeader({
   onUndo,
   onFitCurrentPage,
   onFitAllPages,
+  onAddNotesPageTemplate,
 }: WorkspaceHeaderProps) {
   const [isEditingName, setIsEditingName] = useState(false);
   const [nameValue, setNameValue] = useState(documentName);
+  const [notesDialogOpen, setNotesDialogOpen] = useState(false);
 
   const handleSaveName = () => {
     onSetDocumentName(nameValue.trim() || "Untitled Document");
@@ -390,16 +394,19 @@ export function WorkspaceHeader({
                 Regular Page
               </DropdownMenuItem>
               {onAddNotesPage && (
-                <DropdownMenuItem
-                  className="text-xs gap-2"
-                  onClick={onAddNotesPage}
-                >
-                  <NotebookPen className="w-3.5 h-3.5 text-amber-500" />
-                  <span>Notes Page</span>
-                  <span className="ml-auto text-[9px] bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400 px-1 rounded font-bold">
-                    NEW
-                  </span>
-                </DropdownMenuItem>
+                <>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    className="text-xs gap-2"
+                    onClick={() => setNotesDialogOpen(true)}
+                  >
+                    <NotebookPen className="w-3.5 h-3.5 text-amber-500" />
+                    <span>Notes Page</span>
+                    <span className="ml-auto text-[9px] bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400 px-1 rounded font-bold">
+                      NEW
+                    </span>
+                  </DropdownMenuItem>
+                </>
               )}
             </DropdownMenuContent>
           </DropdownMenu>
@@ -415,6 +422,16 @@ export function WorkspaceHeader({
           </Button>
         </div>
       </header>
+
+      {/* Notes page type picker */}
+      {onAddNotesPage && (
+        <NotesTypeDialog
+          open={notesDialogOpen}
+          onOpenChange={setNotesDialogOpen}
+          onSelectBlank={onAddNotesPage}
+          onSelectTemplate={onAddNotesPageTemplate ?? onAddNotesPage}
+        />
+      )}
     </TooltipProvider>
   );
 }

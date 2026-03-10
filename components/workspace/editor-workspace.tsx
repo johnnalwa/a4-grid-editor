@@ -21,12 +21,13 @@ import { RemoteCameraModal } from "./remote-camera-modal";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useDocumentStore } from "@/hooks/use-document-store";
 import { cn } from "@/lib/utils";
-import type { PageElement, Position } from "@/lib/document-types";
+import type { NotesPageFields, PageElement, Position } from "@/lib/document-types";
 import {
   createTextElement,
   createNoteElement,
   createImageElement,
   createShapeElement,
+  NOTES_TEMPLATE_CONTENT,
 } from "@/lib/document-types";
 import {
   PanelLeft,
@@ -409,9 +410,38 @@ export function EditorWorkspace() {
     );
   }, [store]);
 
+  const handleAddNotesPageTemplate = useCallback(() => {
+    store.addNotesPage(NOTES_TEMPLATE_CONTENT);
+  }, [store]);
+
   const handleUpdatePageLabel = useCallback(
     (pageId: string, label: string) => {
       store.updatePageLabel(pageId, label);
+    },
+    [store]
+  );
+
+  const handleUpdateNotesPageFields = useCallback(
+    (pageId: string, updates: NotesPageFields) => {
+      store.updateNotesPageFields(pageId, updates);
+    },
+    [store]
+  );
+
+  const handleContinueStructuredNotes = useCallback(
+    (pageId: string) => {
+      const page = store.state.pages.find((entry) => entry.id === pageId);
+      if (!page || page.pageType !== "notes" || page.notesLayout !== "structured") {
+        return;
+      }
+
+      store.insertNotesPageAfter(pageId, {
+        notesLayout: "structured",
+        pageDate: page.pageDate,
+        pageSubject: page.pageSubject,
+        pageLabel: "",
+        checklistItems: [],
+      });
     },
     [store]
   );
@@ -639,6 +669,7 @@ export function EditorWorkspace() {
           pageCount={store.state.pages.length}
           onAddPage={store.addPage}
           onAddNotesPage={store.addNotesPage}
+          onAddNotesPageTemplate={handleAddNotesPageTemplate}
           darkMode={darkMode}
           onToggleDarkMode={() => setDarkMode((prev) => !prev)}
           documentName={store.state.name}
@@ -701,6 +732,7 @@ export function EditorWorkspace() {
                 }}
                 onAddPage={store.addPage}
                 onAddNotesPage={store.addNotesPage}
+                onAddNotesPageTemplate={handleAddNotesPageTemplate}
                 onReorderPage={store.reorderPages}
               />
             </div>
@@ -771,6 +803,15 @@ export function EditorWorkspace() {
                     isMobile={isMobile}
                     onMoveStart={store.recordSnapshot}
                     onUpdatePageLabel={(label) => handleUpdatePageLabel(page.id, label)}
+                    onUpdateNotesPageFields={(updates) =>
+                      handleUpdateNotesPageFields(page.id, updates)
+                    }
+                    onRequestNextStructuredNotesPage={() =>
+                      handleContinueStructuredNotes(page.id)
+                    }
+                    imagesPerPage={imagesPerPage}
+                    onSetImagesPerPage={setImagesPerPage}
+                    onFitCurrentPage={handleFitCurrentPage}
                   />
                 ))}
               </div>

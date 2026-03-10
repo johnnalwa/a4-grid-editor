@@ -41,12 +41,27 @@ export interface PageElement {
   borderRadius?: number;
 }
 
-export interface DocumentPage {
+export interface ChecklistItem {
+  id: string;
+  text: string;
+  checked: boolean;
+}
+
+export type NotesLayout = "blank" | "structured";
+
+export interface NotesPageFields {
+  notesLayout?: NotesLayout;
+  pageLabel?: string;
+  pageDate?: string;
+  pageSubject?: string;
+  checklistItems?: ChecklistItem[];
+}
+
+export interface DocumentPage extends NotesPageFields {
   id: string;
   elements: PageElement[];
   backgroundColor: string;
   pageType?: "regular" | "notes";
-  pageLabel?: string;
 }
 
 export interface DocumentState {
@@ -74,15 +89,51 @@ export function createPage(id?: string): DocumentPage {
   };
 }
 
-export function createNotesPage(id?: string): DocumentPage {
+function makeChecklistItemId() {
+  return `item-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+}
+
+export function createChecklistItem(text = "", checked = false): ChecklistItem {
+  return {
+    id: makeChecklistItemId(),
+    text,
+    checked,
+  };
+}
+
+export function createNotesPage(
+  id?: string,
+  opts?: NotesPageFields
+): DocumentPage {
+  const defaultChecklist =
+    opts?.checklistItems ??
+    (opts?.notesLayout === "structured" ? NOTES_TEMPLATE_CHECKLIST : []);
+
   return {
     id: id || `page-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
     elements: [],
     backgroundColor: "#ffffff",
     pageType: "notes",
-    pageLabel: "",
+    notesLayout: opts?.notesLayout ?? "blank",
+    pageLabel: opts?.pageLabel ?? "",
+    pageDate: opts?.pageDate ?? "",
+    pageSubject: opts?.pageSubject ?? "",
+    checklistItems: defaultChecklist.map((item) => ({ ...item })),
   };
 }
+
+export const NOTES_TEMPLATE_CHECKLIST: ChecklistItem[] = Array.from(
+  { length: 5 },
+  () => createChecklistItem()
+);
+
+export const NOTES_TEMPLATE_CONTENT: NotesPageFields = {
+  notesLayout: "structured",
+  pageLabel: "",
+  pageDate: "",
+  pageSubject: "",
+  checklistItems: NOTES_TEMPLATE_CHECKLIST,
+};
 
 export function createTextElement(
   position: Position,

@@ -6,10 +6,12 @@ import type {
   DocumentPage,
   PageElement,
   Position,
+  NotesPageFields,
 } from "@/lib/document-types";
 import {
   createPage,
   createNotesPage,
+  createChecklistItem,
   createTextElement,
   createNoteElement,
   createImageElement,
@@ -102,13 +104,38 @@ export function useDocumentStore() {
     });
   }, []);
 
-  const addNotesPage = useCallback(() => {
+  const addNotesPage = useCallback((opts?: Parameters<typeof createNotesPage>[1]) => {
     setState((prev) => {
       pushHistory(prev);
-      const newPage = createNotesPage();
+      const newPage = createNotesPage(undefined, opts);
       return {
         ...prev,
         pages: [...prev.pages, newPage],
+        selectedPageId: newPage.id,
+        selectedElementId: null,
+      };
+    });
+  }, []);
+
+  const insertNotesPageAfter = useCallback((
+    pageId: string,
+    opts?: Parameters<typeof createNotesPage>[1]
+  ) => {
+    setState((prev) => {
+      pushHistory(prev);
+      const pageIndex = prev.pages.findIndex((p) => p.id === pageId);
+      const newPage = createNotesPage(undefined, opts);
+      const newPages = [...prev.pages];
+
+      if (pageIndex === -1) {
+        newPages.push(newPage);
+      } else {
+        newPages.splice(pageIndex + 1, 0, newPage);
+      }
+
+      return {
+        ...prev,
+        pages: newPages,
         selectedPageId: newPage.id,
         selectedElementId: null,
       };
@@ -120,6 +147,18 @@ export function useDocumentStore() {
       ...prev,
       pages: prev.pages.map((p) =>
         p.id === pageId ? { ...p, pageLabel: label } : p
+      ),
+    }));
+  }, []);
+
+  const updateNotesPageFields = useCallback((
+    pageId: string,
+    updates: NotesPageFields
+  ) => {
+    setState((prev) => ({
+      ...prev,
+      pages: prev.pages.map((p) =>
+        p.id === pageId ? { ...p, ...updates } : p
       ),
     }));
   }, []);
@@ -153,6 +192,9 @@ export function useDocumentStore() {
           ...el,
           id: `el-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
         })),
+        checklistItems: original.checklistItems?.map((item) =>
+          createChecklistItem(item.text, item.checked)
+        ),
       };
       const newPages = [...prev.pages];
       newPages.splice(pageIndex + 1, 0, duplicate);
@@ -390,7 +432,9 @@ export function useDocumentStore() {
     selectElement,
     addPage,
     addNotesPage,
+    insertNotesPageAfter,
     updatePageLabel,
+    updateNotesPageFields,
     deletePage,
     duplicatePage,
     reorderPages,

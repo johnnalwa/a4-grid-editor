@@ -518,8 +518,19 @@ function renderPageToCanvas(
   ctx.fillStyle = page.backgroundColor;
   ctx.fillRect(0, 0, A4_WIDTH_PX, A4_HEIGHT_PX);
 
-  // Notes page: classic notebook look — blue lines, red margin on white
   if (page.pageType === "notes") {
+    drawNotesPageBackground(ctx);
+
+    if (page.notesLayout === "structured") {
+      drawStructuredNotesPage(ctx, page);
+    } else if (page.pageLabel) {
+      drawBlankNotesPage(ctx, page.pageLabel);
+    }
+  }
+
+  // Notes page: classic notebook look — blue lines, red margin on white
+  /*
+  if (false && ctx && page.pageType === "notes") {
     // Horizontal blue ruled lines every 32px
     ctx.strokeStyle = "#9ec5e8";
     ctx.lineWidth = 0.8;
@@ -547,7 +558,7 @@ function renderPageToCanvas(
       ctx.textAlign = "left";
       ctx.direction = "ltr";
       const maxTextWidth = A4_WIDTH_PX - 66 - 20; // right margin 20px
-      const rawLines = page.pageLabel.split("\n");
+      const rawLines = (page.pageLabel ?? "").split("\n");
       let currentY = 30; // baseline of first line (sits just above the 32px rule line)
       for (const rawLine of rawLines) {
         const wrappedLines = rawLine === "" ? [""] : wrapText(ctx, rawLine, maxTextWidth);
@@ -560,6 +571,8 @@ function renderPageToCanvas(
       }
     }
   }
+
+  */
 
   // Elements in z-order
   const sorted = [...page.elements].sort((a, b) => a.zIndex - b.zIndex);
@@ -580,6 +593,215 @@ function renderPageToCanvas(
   }
 
   return canvas;
+}
+
+function drawNotesPageBackground(ctx: CanvasRenderingContext2D) {
+  ctx.strokeStyle = "#9ec5e8";
+  ctx.lineWidth = 0.8;
+  ctx.globalAlpha = 0.6;
+  for (let y = 32; y < A4_HEIGHT_PX; y += 32) {
+    ctx.beginPath();
+    ctx.moveTo(0, y);
+    ctx.lineTo(A4_WIDTH_PX, y);
+    ctx.stroke();
+  }
+  ctx.globalAlpha = 1;
+
+  ctx.strokeStyle = "rgba(210, 50, 50, 0.55)";
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(54, 0);
+  ctx.lineTo(54, A4_HEIGHT_PX);
+  ctx.stroke();
+}
+
+function drawBlankNotesPage(ctx: CanvasRenderingContext2D, text: string) {
+  ctx.fillStyle = "#1e293b";
+  ctx.font = "14px Inter, system-ui, sans-serif";
+  ctx.textAlign = "left";
+  ctx.direction = "ltr";
+
+  const maxTextWidth = A4_WIDTH_PX - 66 - 20;
+  const rawLines = text.split("\n");
+  let currentY = 30;
+
+  for (const rawLine of rawLines) {
+    const wrappedLines = rawLine === "" ? [""] : wrapText(ctx, rawLine, maxTextWidth);
+    for (const wrappedLine of wrappedLines) {
+      if (currentY > A4_HEIGHT_PX + 16) break;
+      ctx.fillText(wrappedLine, 66, currentY);
+      currentY += 32;
+    }
+
+    if (currentY > A4_HEIGHT_PX + 16) break;
+  }
+}
+
+function drawStructuredNotesPage(ctx: CanvasRenderingContext2D, page: DocumentPage) {
+  const contentX = 66;
+  const contentWidth = A4_WIDTH_PX - contentX - 24;
+  const lineHeight = 32;
+  const notesStartY = 126;
+  const notesBottomY = 446;
+  const checklistStartY = 510;
+
+  drawLabeledLine(ctx, "Date", page.pageDate || "", contentX, 30, contentWidth);
+  drawLabeledLine(ctx, "Subject", page.pageSubject || "", contentX, 62, contentWidth);
+
+  drawSectionTag(ctx, "Notes", contentX, 88);
+  drawWrappedTextBlock(
+    ctx,
+    page.pageLabel || "",
+    contentX,
+    notesStartY,
+    contentWidth,
+    notesBottomY,
+    lineHeight
+  );
+
+  drawSectionTag(ctx, "Checklist", contentX, 472);
+
+  const checklistItems = page.checklistItems ?? [];
+  let currentY = checklistStartY;
+
+  ctx.save();
+  ctx.font = "14px Inter, system-ui, sans-serif";
+  ctx.textAlign = "left";
+  ctx.direction = "ltr";
+
+  for (const item of checklistItems) {
+    if (currentY > A4_HEIGHT_PX - 24) break;
+
+    drawChecklistBox(ctx, contentX, currentY - 11, item.checked);
+
+    const itemText = item.text || "";
+    ctx.fillStyle = "#1e293b";
+    ctx.fillText(itemText, contentX + 22, currentY);
+
+    currentY += lineHeight;
+  }
+
+  ctx.restore();
+}
+
+function drawLabeledLine(
+  ctx: CanvasRenderingContext2D,
+  label: string,
+  value: string,
+  x: number,
+  baselineY: number,
+  maxWidth: number
+) {
+  ctx.save();
+  ctx.textAlign = "left";
+  ctx.direction = "ltr";
+
+  ctx.fillStyle = "#0f172a";
+  ctx.font = "900 13px Inter, system-ui, sans-serif";
+  const labelText = label.toUpperCase();
+  ctx.fillText(labelText, x, baselineY);
+
+  const labelWidth = ctx.measureText(labelText).width + 18;
+  ctx.fillStyle = "#1e293b";
+  ctx.font = label === "Subject"
+    ? "700 15px Inter, system-ui, sans-serif"
+    : "600 14px Inter, system-ui, sans-serif";
+  const clippedValue = clipText(ctx, value, Math.max(0, maxWidth - labelWidth));
+  ctx.fillText(clippedValue, x + labelWidth, baselineY);
+  ctx.restore();
+}
+
+function drawSectionTag(
+  ctx: CanvasRenderingContext2D,
+  label: string,
+  x: number,
+  y: number
+) {
+  ctx.save();
+  ctx.textAlign = "left";
+  ctx.direction = "ltr";
+  ctx.font = "900 10px Inter, system-ui, sans-serif";
+
+  const tagLabel = label.toUpperCase();
+  const paddingX = 8;
+  const tagHeight = 18;
+  const tagWidth = ctx.measureText(tagLabel).width + paddingX * 2;
+
+  ctx.fillStyle = "#2563eb";
+  ctx.fillRect(x, y, tagWidth, tagHeight);
+
+  ctx.fillStyle = "#ffffff";
+  ctx.textBaseline = "middle";
+  ctx.fillText(tagLabel, x + paddingX, y + tagHeight / 2);
+  ctx.restore();
+}
+
+function drawChecklistBox(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  checked: boolean
+) {
+  ctx.save();
+  ctx.strokeStyle = checked ? "#059669" : "#475569";
+  ctx.lineWidth = 1.4;
+  ctx.strokeRect(x, y, 12, 12);
+
+  if (checked) {
+    ctx.beginPath();
+    ctx.moveTo(x + 2.5, y + 6.5);
+    ctx.lineTo(x + 5.5, y + 9.5);
+    ctx.lineTo(x + 10, y + 3.5);
+    ctx.stroke();
+  }
+
+  ctx.restore();
+}
+
+function drawWrappedTextBlock(
+  ctx: CanvasRenderingContext2D,
+  text: string,
+  x: number,
+  startY: number,
+  maxWidth: number,
+  maxY: number,
+  lineHeight: number
+) {
+  ctx.save();
+  ctx.fillStyle = "#1e293b";
+  ctx.font = "14px Inter, system-ui, sans-serif";
+  ctx.textAlign = "left";
+  ctx.direction = detectTextDirection(text) === "rtl" ? "rtl" : "ltr";
+
+  const rawLines = text.split("\n");
+  let currentY = startY;
+
+  for (const rawLine of rawLines) {
+    const wrappedLines = rawLine === "" ? [""] : wrapText(ctx, rawLine, maxWidth);
+    for (const wrappedLine of wrappedLines) {
+      if (currentY > maxY) {
+        ctx.restore();
+        return;
+      }
+
+      ctx.fillText(wrappedLine, x, currentY);
+      currentY += lineHeight;
+    }
+  }
+
+  ctx.restore();
+}
+
+function clipText(ctx: CanvasRenderingContext2D, text: string, maxWidth: number) {
+  if (!text || maxWidth <= 0) return "";
+  if (ctx.measureText(text).width <= maxWidth) return text;
+
+  let clipped = text;
+  while (clipped.length > 0 && ctx.measureText(`${clipped}...`).width > maxWidth) {
+    clipped = clipped.slice(0, -1);
+  }
+
+  return clipped ? `${clipped}...` : "";
 }
 
 // ─── Canvas drawing helpers ───────────────────────────────────────────────────
