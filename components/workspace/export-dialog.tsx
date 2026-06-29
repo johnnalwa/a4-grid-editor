@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import {
   Dialog,
   DialogContent,
@@ -52,6 +52,17 @@ export function ExportDialog({
   const [status, setStatus] = useState<ExportStatus>("idle");
   const [errorMessage, setErrorMessage] = useState("");
   const [activeShare, setActiveShare] = useState<ShareMethod | null>(null);
+
+  // Reset to all-selected + merge on every open
+  useEffect(() => {
+    if (open) {
+      setSelectedPages(new Set(pages.map((p) => p.id)));
+      setMergeAll(true);
+      setStatus("idle");
+      setErrorMessage("");
+      setActiveShare(null);
+    }
+  }, [open, pages]);
 
   const togglePage = useCallback((pageId: string) => {
     setSelectedPages((prev) => {
@@ -209,7 +220,7 @@ export function ExportDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-xl bg-surface">
+      <DialogContent className="sm:max-w-xl bg-surface max-h-[90vh] flex flex-col overflow-hidden">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-foreground">
             <Share2 className="w-5 h-5 text-primary" />
@@ -220,7 +231,7 @@ export function ExportDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4">
+        <div className="space-y-4 min-h-0 flex flex-col overflow-hidden">
           {/* File name */}
           <div>
             <Label className="text-xs font-medium text-foreground">File Name</Label>
@@ -238,8 +249,8 @@ export function ExportDialog({
           <Separator />
 
           {/* Page selection */}
-          <div>
-            <div className="flex items-center justify-between mb-3">
+          <div className="min-h-0 flex flex-col overflow-hidden">
+            <div className="flex items-center justify-between mb-3 shrink-0">
               <Label className="text-xs font-medium text-foreground">
                 Select Pages
                 <span className="ml-1.5 text-[10px] font-normal text-muted-foreground">
@@ -265,7 +276,15 @@ export function ExportDialog({
               </div>
             </div>
 
-            <div className="grid grid-cols-4 sm:grid-cols-6 gap-2">
+            <div className="overflow-y-auto overscroll-contain pr-1" style={{ maxHeight: pages.length > 12 ? '220px' : 'none' }}>
+            <div className={cn(
+              "grid gap-2",
+              pages.length <= 8
+                ? "grid-cols-4 sm:grid-cols-6"
+                : pages.length <= 20
+                  ? "grid-cols-5 sm:grid-cols-8"
+                  : "grid-cols-6 sm:grid-cols-10"
+            )}>
               {pages.map((page, index) => {
                 const isSelected = selectedPages.has(page.id);
                 const isNotes = page.pageType === "notes";
@@ -354,6 +373,7 @@ export function ExportDialog({
                 );
               })}
             </div>
+            </div>
           </div>
 
           <Separator />
@@ -405,8 +425,13 @@ export function ExportDialog({
           )}
         </div>
 
+        {/* Scroll fade indicator — only visible when page grid scrolls */}
+        {pages.length > 12 && (
+          <div className="h-px bg-gradient-to-r from-transparent via-border to-transparent shrink-0" />
+        )}
+
         {/* Action buttons */}
-        <div className="flex flex-col gap-2 pt-1">
+        <div className="flex flex-col gap-2 pt-1 shrink-0">
           <div className="grid grid-cols-3 gap-2">
             {/* Save PDF */}
             <Button
