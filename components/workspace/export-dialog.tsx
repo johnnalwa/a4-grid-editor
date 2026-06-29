@@ -52,6 +52,7 @@ export function ExportDialog({
   const [status, setStatus] = useState<ExportStatus>("idle");
   const [errorMessage, setErrorMessage] = useState("");
   const [activeShare, setActiveShare] = useState<ShareMethod | null>(null);
+  const [exportProgress, setExportProgress] = useState({ current: 0, total: 0 });
 
   // Reset to all-selected + merge on every open
   useEffect(() => {
@@ -84,8 +85,12 @@ export function ExportDialog({
     setSelectedPages(new Set());
   }, []);
 
+  // Keep a ref in sync so callbacks never read a stale value
+  const mergeAllRef = useRef(mergeAll);
+  useEffect(() => { mergeAllRef.current = mergeAll; }, [mergeAll]);
+
   // ── Core PDF generation ────────────────────────────────────────────────────
-  const generatePDFBlob = useCallback(async (): Promise<Blob | null> => {
+  const generatePDFBlob = useCallback(async (onProgress?: (current: number, total: number) => void): Promise<Blob | null> => {
     const pagesToExport = pages.filter((p) => selectedPages.has(p.id));
     if (pagesToExport.length === 0) return null;
 
@@ -95,13 +100,18 @@ export function ExportDialog({
     ]);
 
     const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
-    for (let i = 0; i < pagesToExport.length; i++) {
+    const total = pagesToExport.length;
+    for (let i = 0; i < total; i++) {
+      if (onProgress) onProgress(i + 1, total);
       if (i > 0) pdf.addPage("a4", "portrait");
       const canvas = renderPageToCanvas(pagesToExport[i], imageCache);
-      pdf.addImage(canvas.toDataURL("image/png"), "PNG", 0, 0, A4_WIDTH_MM, A4_HEIGHT_MM);
+      // Use JPEG with 0.9 quality for 10x smaller size, faster export, and to prevent browser memory crashes
+      pdf.addImage(canvas.toDataURL("image/jpeg", 0.9), "JPEG", 0, 0, A4_WIDTH_MM, A4_HEIGHT_MM);
+      // Yield to let the browser repaint and prevent lockup
+      await new Promise((resolve) => setTimeout(resolve, 15));
     }
     return pdf.output("blob") as Blob;
-  }, [pages, selectedPages, mergeAll]);
+  }, [pages, selectedPages]);
 
   // ── Save PDF ────────────────────────────────────────────────────────────────
   const handleSavePDF = useCallback(async () => {
@@ -111,6 +121,11 @@ export function ExportDialog({
     setStatus("generating");
     setActiveShare("pdf");
     setErrorMessage("");
+    const total = pagesToExport.length;
+    setExportProgress({ current: 0, total });
+
+    // Read the latest value from ref to avoid stale closures
+    const shouldMerge = mergeAllRef.current;
 
     try {
       const [{ default: jsPDF }, imageCache] = await Promise.all([
@@ -118,20 +133,26 @@ export function ExportDialog({
         preloadAllImages(pagesToExport),
       ]);
 
-      if (mergeAll) {
+      if (shouldMerge) {
         const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
-        for (let i = 0; i < pagesToExport.length; i++) {
+        for (let i = 0; i < total; i++) {
+          setExportProgress({ current: i + 1, total });
           if (i > 0) pdf.addPage("a4", "portrait");
           const canvas = renderPageToCanvas(pagesToExport[i], imageCache);
-          pdf.addImage(canvas.toDataURL("image/png"), "PNG", 0, 0, A4_WIDTH_MM, A4_HEIGHT_MM);
+          pdf.addImage(canvas.toDataURL("image/jpeg", 0.9), "JPEG", 0, 0, A4_WIDTH_MM, A4_HEIGHT_MM);
+          // Yield to let browser update UI
+          await new Promise((resolve) => setTimeout(resolve, 15));
         }
         pdf.save(`${fileName || "document"}.pdf`);
       } else {
-        for (let i = 0; i < pagesToExport.length; i++) {
+        for (let i = 0; i < total; i++) {
+          setExportProgress({ current: i + 1, total });
           const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
           const canvas = renderPageToCanvas(pagesToExport[i], imageCache);
-          pdf.addImage(canvas.toDataURL("image/png"), "PNG", 0, 0, A4_WIDTH_MM, A4_HEIGHT_MM);
+          pdf.addImage(canvas.toDataURL("image/jpeg", 0.9), "JPEG", 0, 0, A4_WIDTH_MM, A4_HEIGHT_MM);
           pdf.save(`${fileName || "document"}_page${i + 1}.pdf`);
+          // Yield to let browser update UI
+          await new Promise((resolve) => setTimeout(resolve, 15));
         }
       }
 
@@ -142,7 +163,7 @@ export function ExportDialog({
       setErrorMessage(err instanceof Error ? err.message : "Export failed");
       setActiveShare(null);
     }
-  }, [pages, selectedPages, mergeAll, fileName, onOpenChange, generatePDFBlob]);
+  }, [pages, selectedPages, fileName, onOpenChange]);
 
   // ── Share helpers ──────────────────────────────────────────────────────────
   const downloadBlobAndOpen = (blob: Blob, name: string, url: string) => {
@@ -159,8 +180,12 @@ export function ExportDialog({
     setStatus("generating");
     setActiveShare("email");
     setErrorMessage("");
+    const pagesToExport = pages.filter((p) => selectedPages.has(p.id));
+    setExportProgress({ current: 0, total: pagesToExport.length });
     try {
-      const blob = await generatePDFBlob();
+      const blob = await generatePDFBlob((current, total) => {
+        setExportProgress({ current, total });
+      });
       if (!blob) throw new Error("No pages selected");
 
       const pdfName = `${fileName || "document"}.pdf`;
@@ -183,14 +208,18 @@ export function ExportDialog({
       setErrorMessage(err instanceof Error ? err.message : "Share failed");
       setActiveShare(null);
     }
-  }, [generatePDFBlob, fileName]);
+  }, [generatePDFBlob, fileName, pages, selectedPages]);
 
   const handleShareWhatsApp = useCallback(async () => {
     setStatus("generating");
     setActiveShare("whatsapp");
     setErrorMessage("");
+    const pagesToExport = pages.filter((p) => selectedPages.has(p.id));
+    setExportProgress({ current: 0, total: pagesToExport.length });
     try {
-      const blob = await generatePDFBlob();
+      const blob = await generatePDFBlob((current, total) => {
+        setExportProgress({ current, total });
+      });
       if (!blob) throw new Error("No pages selected");
 
       const pdfName = `${fileName || "document"}.pdf`;
@@ -213,7 +242,7 @@ export function ExportDialog({
       setErrorMessage(err instanceof Error ? err.message : "Share failed");
       setActiveShare(null);
     }
-  }, [generatePDFBlob, fileName]);
+  }, [generatePDFBlob, fileName, pages, selectedPages]);
 
   const selectedCount = selectedPages.size;
   const isWorking = status === "generating";
@@ -411,6 +440,15 @@ export function ExportDialog({
             <div className="flex items-center gap-2 p-3 rounded-lg bg-destructive/10 text-destructive text-xs">
               <AlertCircle className="w-4 h-4 shrink-0" />
               {errorMessage}
+            </div>
+          )}
+          {status === "generating" && (
+            <div className="flex items-center gap-2 p-3 rounded-lg bg-blue-500/10 text-blue-600 dark:text-blue-400 text-xs">
+              <Loader2 className="w-4 h-4 animate-spin shrink-0 text-blue-500" />
+              <span>
+                {activeShare === "pdf" ? "Generating PDF..." : "Preparing share..."}{" "}
+                {exportProgress.total > 0 && `Page ${exportProgress.current} of ${exportProgress.total}`}
+              </span>
             </div>
           )}
           {status === "success" && (
